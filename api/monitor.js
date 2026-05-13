@@ -259,22 +259,15 @@ export default async function handler(req, res) {
           anteriores = estadoData[0].state || [];
         }
 
-        // Crear timestamps escalonados POR CADA ESTACIÓN
+        // Crear timestamps escalonados POR CADA ESTACIÓN - SECUENCIAL
         const now = new Date();
         const tiemposEscalonados = {};
         
-        // Asignar timestamp único a cada conector basado en su ID
-        for (const con of actuales) {
-          let hash = 0;
-          const idStr = con.id.toString();
-          for (let i = 0; i < idStr.length; i++) {
-            hash = ((hash << 5) - hash) + idStr.charCodeAt(i);
-            hash = hash & hash;
-          }
-          const segundosAtras = Math.abs(hash) % 60;
-          const timestamp = new Date(now.getTime() - (segundosAtras * 1000));
+        // Asignar timestamp único a cada conector con offset secuencial (0, 1, 2, 3, ...)
+        actuales.forEach((con, index) => {
+          const timestamp = new Date(now.getTime() - (index * 1000)); // Cada conector 1 segundo atrás del anterior
           tiemposEscalonados[con.id] = timestamp.toISOString();
-        }
+        });
         
         for (const con of actuales) {
           const prev = anteriores.find(c => c.id === con.id);
