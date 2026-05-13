@@ -116,6 +116,11 @@ export default async function handler(req, res) {
     let notificacionesEnviadas = 0;
     let cambiosDetectados = [];
 
+    console.log("[v0] Token obtenido de Electromaps");
+    console.log("[v0] SUPABASE_URL:", SUPABASE_URL ? "✓ Configurada" : "✗ NO");
+    console.log("[v0] SUPABASE_KEY:", SUPABASE_KEY ? "✓ Configurada" : "✗ NO");
+    console.log("[v0] Consultando", estacionesLista.length, "estaciones");
+
     for (const est of estacionesLista) {
       try {
         const actuales = await consultarEstado(est.id, token);
@@ -174,6 +179,15 @@ export default async function handler(req, res) {
         }
         
         // Guardar estado actual en Supabase con timestamps
+        console.log("[v0] Guardando estado para estación:", est.nombre, "ID:", est.id);
+        console.log("[v0] Datos:", JSON.stringify({
+          station_id: String(est.id),
+          station_name: est.nombre,
+          state: actuales,
+          last_check: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }));
+        
         const upsertResponse = await fetch(
           `${SUPABASE_URL}/rest/v1/charger_state`,
           {
@@ -194,11 +208,14 @@ export default async function handler(req, res) {
           }
         );
         
+        console.log("[v0] Upsert response status:", upsertResponse.status);
+        
         if (!upsertResponse.ok) {
           const error = await upsertResponse.text();
           console.error("[v0] Error guardando estado:", error);
           await guardarLog("ERROR", est.nombre, `Error guardando estado: ${error}`);
         } else {
+          console.log("[v0] Estado guardado exitosamente para", est.nombre);
           await guardarLog("SUCCESS", est.nombre, `Consultada exitosamente. ${actuales.length} conectores.`);
         }
       } catch (error) {
