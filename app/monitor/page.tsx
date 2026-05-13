@@ -8,6 +8,10 @@ export default function MonitorPage() {
   const [stateChanges, setStateChanges] = useState([]);
   const [logs, setLogs] = useState([]);
   const [chargeHistory, setChargeHistory] = useState([]); // Historial de cargas completadas
+  const [dailyChargesPerStation, setDailyChargesPerStation] = useState({}); // Cargas por estación hoy
+  const [totalDailyCharges, setTotalDailyCharges] = useState(0); // Total cargas hoy
+  const [occupancyPerStation, setOccupancyPerStation] = useState({}); // Porcentaje ocupación por estación
+  const [globalOccupancy, setGlobalOccupancy] = useState(0); // Porcentaje ocupación global
   const [loading, setLoading] = useState(true);
   const [selectedTab, setSelectedTab] = useState('estaciones');
   const [autoRefresh, setAutoRefresh] = useState(true);
@@ -66,6 +70,82 @@ export default function MonitorPage() {
         .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
         .slice(0, 20); // Últimas 20 cargas
       setChargeHistory(completedCharges);
+      
+      // Calcular cargas del día actual (desde las 00:00)
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const chargesPerStation = {};
+      let totalCharges = 0;
+      
+      stateChanges.forEach(change => {
+        const changeTime = new Date(change.timestamp);
+        // Solo contar si es del día actual
+        if (changeTime >= today && (change.new_status === 'FREE' || change.new_status === 'AVAILABLE')) {
+          const stationName = change.station_name;
+          chargesPerStation[stationName] = (chargesPerStation[stationName] || 0) + 1;
+          totalCharges++;
+        }
+      });
+      
+      setDailyChargesPerStation(chargesPerStation);
+      setTotalDailyCharges(totalCharges);
+      
+      // Calcular porcentaje de ocupación por estación desde las 00:00
+      const occupancyByStation = {};
+      let totalOccupiedTime = 0;
+      let totalTime = 0;
+      
+      // Agrupar cambios por estación y conector
+      const changesByStationConnector = {};
+      stateChanges.forEach(change => {
+        const changeTime = new Date(change.timestamp);
+        if (changeTime >= today) {
+          const key = `${change.station_name}|${change.connector_id}`;
+          if (!changesByStationConnector[key]) {
+            changesByStationConnector[key] = [];
+          }
+          changesByStationConnector[key].push(change);
+        }
+      });
+      
+      // Calcular tiempo por estado para cada conector
+      Object.entries(changesByStationConnector).forEach(([key, changes]) => {
+        const [stationName] = key.split('|');
+        const sortedChanges = changes.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+        
+        for (let i = 0; i < sortedChanges.length - 1; i++) {
+          const current = new Date(sortedChanges[i].timestamp);
+          const next = new Date(sortedChanges[i + 1].timestamp);
+          const duration = next - current;
+          
+          const isOccupied = sortedChanges[i].new_status !== 'FREE' && sortedChanges[i].new_status !== 'AVAILABLE';
+          
+          if (!occupancyByStation[stationName]) {
+            occupancyByStation[stationName] = { occupied: 0, free: 0 };
+          }
+          
+          if (isOccupied) {
+            occupancyByStation[stationName].occupied += duration;
+            totalOccupiedTime += duration;
+          } else {
+            occupancyByStation[stationName].free += duration;
+          }
+          totalTime += duration;
+        }
+      });
+      
+      // Calcular porcentajes
+      const percentagesByStation = {};
+      Object.entries(occupancyByStation).forEach(([station, times]) => {
+        const total = times.occupied + times.free;
+        percentagesByStation[station] = total > 0 ? Math.round((times.occupied / total) * 100) : 0;
+      });
+      
+      const globalOccupancyPercent = totalTime > 0 ? Math.round((totalOccupiedTime / totalTime) * 100) : 0;
+      
+      setOccupancyPerStation(percentagesByStation);
+      setGlobalOccupancy(globalOccupancyPercent);
     }
   }, [stateChanges]);
 
@@ -192,6 +272,18 @@ export default function MonitorPage() {
         <div className="mb-8">
           <h1 className="text-4xl font-bold text-white mb-2">GuardianCharger Mérida <span className="text-lg text-slate-400">{APP_VERSION}</span></h1>
           <p className="text-slate-300">Sistema de monitoreo de cargadores eléctricos de vehículos en tiempo real</p>
+          
+          {/* Daily Charge Counter - Total + Occupancy */}
+          <div className="mt-4 flex items-center gap-6 text-lg">
+            <div className="flex items-center gap-2">
+              <span className="text-2xl">🔌🚗</span>
+              <span className="text-green-400 font-bold">Hoy: {totalDailyCharges} cargas</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-2xl">📊</span>
+              <span className="text-blue-400 font-bold">Ocupación: {globalOccupancy}%</span>
+            </div>
+          </div>
         </div>
 
         {/* Error Alert */}
@@ -224,6 +316,18 @@ export default function MonitorPage() {
                     <div className="flex justify-between items-start mb-4">
                       <div>
                         <h3 className="text-white font-bold text-2xl">{station.name}</h3>
+                      </div>
+                      <div className="text-right">
+                        <div className="flex items-center gap-3 justify-end">
+                          <div className="flex items-center gap-1 text-purple-400 font-bold text-sm">
+                            <span>📊</span>
+                            <span>{occupancyPerStation[station.name] || 0}%</span>
+                          </div>
+                          <div className="flex items-center gap-1 text-yellow-400 font-bold">
+                            <span className="text-lg">🔌🚗</span>
+                            <span>{dailyChargesPerStation[station.name] || 0}</span>
+                          </div>
+                        </div>
                       </div>
                     </div>
 
