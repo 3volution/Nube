@@ -300,6 +300,9 @@ export default async function handler(req, res) {
           }
         }
         
+        // DEBUG: Log de los offsets que se van a guardar
+        console.log(`[v0 OFFSET] Estación ${est.nombre}: offsets =`, actuales.map((c, i) => ({ id: c.id, timestamp: c.status_changed_at, index: i })));
+        
         // Guardar estado actual en Supabase con timestamps
         
         // Usar UPSERT en lugar de DELETE + INSERT para mantener los timestamps
