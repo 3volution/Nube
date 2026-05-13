@@ -61,6 +61,28 @@ export default function MonitorPage() {
     return () => clearInterval(interval);
   }, []);
 
+  // Re-renderizar cada segundo para actualizar los tiempos dinámicamente (como en Scriptable)
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setStations(prev => [...prev]); // Forzar re-render sin cambiar data
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Función para calcular tiempo transcurrido (igual que en Scriptable)
+  const formatTime = (isoString) => {
+    if (!isoString) return 'Sin datos';
+    try {
+      const mins = Math.floor((Date.now() - new Date(isoString).getTime()) / 60000);
+      if (mins < 1) return 'Hace segundos';
+      const h = Math.floor(mins / 60);
+      const m = mins % 60;
+      return h > 0 ? `Hace ${h}h ${m}m` : `Hace ${m}m`;
+    } catch (e) {
+      return 'Error';
+    }
+  };
+
   const getStatusColor = (status) => {
     if (status === 'FREE' || status === 'AVAILABLE') {
       return 'bg-green-900 text-green-100 border-l-4 border-green-500';
@@ -186,7 +208,7 @@ export default function MonitorPage() {
                           <div className="flex flex-col gap-2">
                             <div className="flex items-baseline gap-3">
                               <span className="text-2xl sm:text-3xl font-bold">{connector.status_display}</span>
-                              <span className="text-lg sm:text-2xl font-semibold">{connector.time_in_state}</span>
+                              <span className="text-lg sm:text-2xl font-semibold">{formatTime(connector.status_changed_at)}</span>
                             </div>
                           </div>
                         </div>
