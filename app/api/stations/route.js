@@ -67,25 +67,34 @@ export async function GET(request) {
       console.log("[v0] First station connectors:", JSON.stringify(stations[0].state?.slice(0, 2)));
     }
 
-    const formattedStations = stations.map(station => ({
-      id: station.station_id,
-      name: station.station_name,
-      connectors: (station.state || []).map(connector => ({
-        id: connector.id,
-        visualRef: connector.visualRef,
-        status: connector.status,
-        status_display: connector.status === 'FREE' || connector.status === 'AVAILABLE' ? 'LIBRE' : 'OCUPADO',
-        time_in_state: formatearTiempoTranscurrido(connector.status_changed_at),
-        status_changed_at: connector.status_changed_at
-      })),
-      lastCheck: new Date(station.last_check).toLocaleString('es-ES'),
-      conectoresLibres: (station.state || []).filter(c => 
-        c.status === 'FREE' || c.status === 'AVAILABLE'
-      ).length,
-      conectoresOcupados: (station.state || []).filter(c => 
-        c.status !== 'FREE' && c.status !== 'AVAILABLE'
-      ).length
-    }));
+    const formattedStations = stations.map(station => {
+      const formattedConnectors = (station.state || []).map(connector => {
+        const timeInState = formatearTiempoTranscurrido(connector.status_changed_at);
+        console.log(`[v0] Conector ${connector.id}: timestamp=${connector.status_changed_at}, timeInState=${timeInState}`);
+        
+        return {
+          id: connector.id,
+          visualRef: connector.visualRef,
+          status: connector.status,
+          status_display: connector.status === 'FREE' || connector.status === 'AVAILABLE' ? 'LIBRE' : 'OCUPADO',
+          time_in_state: timeInState,
+          status_changed_at: connector.status_changed_at
+        };
+      });
+      
+      return {
+        id: station.station_id,
+        name: station.station_name,
+        connectors: formattedConnectors,
+        lastCheck: new Date(station.last_check).toLocaleString('es-ES'),
+        conectoresLibres: formattedConnectors.filter(c => 
+          c.status === 'FREE' || c.status === 'AVAILABLE'
+        ).length,
+        conectoresOcupados: formattedConnectors.filter(c => 
+          c.status !== 'FREE' && c.status !== 'AVAILABLE'
+        ).length
+      };
+    });
 
     return Response.json({
       success: true,
