@@ -99,6 +99,83 @@ async function guardarLog(tipo, estacion, mensaje) {
   }
 }
 
+async function obtenerTimestampConector(connectorId) {
+  try {
+    const response = await fetch(
+      `${SUPABASE_URL}/rest/v1/connector_timestamps?connector_id=eq.${connectorId}`,
+      {
+        headers: {
+          "Authorization": `Bearer ${SUPABASE_KEY}`,
+          "apikey": SUPABASE_KEY
+        }
+      }
+    );
+
+    if (response.ok) {
+      const data = await response.json();
+      return data.length > 0 ? data[0] : null;
+    }
+    return null;
+  } catch (error) {
+    console.error(`[v0] Error obteniendo timestamp para ${connectorId}:`, error.message);
+    return null;
+  }
+}
+
+async function guardarTimestampConector(connectorId, stationId, status, statusChangedAt) {
+  try {
+    const response = await fetch(
+      `${SUPABASE_URL}/rest/v1/connector_timestamps?connector_id=eq.${connectorId}`,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${SUPABASE_KEY}`,
+          "apikey": SUPABASE_KEY
+        },
+        body: JSON.stringify({
+          connector_id: String(connectorId),
+          station_id: String(stationId),
+          status: status,
+          status_changed_at: statusChangedAt
+        })
+      }
+    );
+
+    if (!response.ok) {
+      // Si PUT falla (no existe), hacer INSERT
+      const insertResponse = await fetch(
+        `${SUPABASE_URL}/rest/v1/connector_timestamps`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${SUPABASE_KEY}`,
+            "apikey": SUPABASE_KEY
+          },
+          body: JSON.stringify({
+            connector_id: String(connectorId),
+            station_id: String(stationId),
+            status: status,
+            status_changed_at: statusChangedAt
+          })
+        }
+      );
+
+      if (!insertResponse.ok) {
+        const error = await insertResponse.text();
+        console.error(`[v0] Error guardando timestamp para ${connectorId}:`, error);
+      } else {
+        console.log(`[v0] Timestamp creado para conector ${connectorId}: ${statusChangedAt}`);
+      }
+    } else {
+      console.log(`[v0] Timestamp actualizado para conector ${connectorId}: ${statusChangedAt}`);
+    }
+  } catch (error) {
+    console.error(`[v0] Error al guardar timestamp:`, error.message);
+  }
+}
+
 async function guardarCambioEstado(connectorId, stationId, stationName, estadoAnterior, estadoNuevo, tiempoEnEstadoAnterior) {
   try {
     const ahora = new Date();
@@ -185,23 +262,24 @@ export default async function handler(req, res) {
         for (const con of actuales) {
           const prev = anteriores.find(c => c.id === con.id);
           
-          // Si existe un registro anterior, mantener o actualizar su timestamp
-          if (prev && prev.status_changed_at) {
-            // Si el estado es igual, mantener el timestamp anterior
-            if (prev.status === con.status) {
-              con.status_changed_at = prev.status_changed_at;
-              console.log(`[v0] Estado sin cambios para conector ${con.id}, manteniendo timestamp: ${con.status_changed_at}`);
-            } else {
-              // Si el estado cambió, crear nuevo timestamp
-              console.log(`[v0] Estado cambió para conector ${con.id}: ${prev.status} → ${con.status}`);
-              con.status_changed_at = new Date().toISOString();
-              
-              // Calcular tiempo en estado anterior
-              const prevTimestamp = new Date(prev.status_changed_at);
+          // Obtener el timestamp almacenado de este conector
+          const timestampRecord = await obtenerTimestampConector(con.id);
+          
+          if (prev && prev.status !== con.status) {
+            // Estado cambió - crear nuevo timestamp
+            console.log(`[v0] Estado cambió para conector ${con.id}: ${prev.status} → ${con.status}`);
+            con.status_changed_at = new Date().toISOString();
+            
+            // Guardar el nuevo timestamp en la tabla
+            await guardarTimestampConector(con.id, est.id, con.status, con.status_changed_at);
+            
+            // Calcular tiempo en estado anterior
+            if (timestampRecord && timestampRecord.status_changed_at) {
+              const prevTimestamp = new Date(timestampRecord.status_changed_at);
               const ahora = new Date();
               const tiempoEnSegundos = Math.floor((ahora - prevTimestamp) / 1000);
               
-              // Registrar CUALQUIER cambio de estado
+              // Registrar cambio de estado
               await guardarCambioEstado(
                 con.visualRef || con.id,
                 est.id,
@@ -210,45 +288,39 @@ export default async function handler(req, res) {
                 con.status,
                 tiempoEnSegundos
               );
-              
-              const nombre = con.visualRef || con.id;
-              
-              // Enviar notificación SOLO si cambió a LIBRE
-              const estabaOcupado = (prev.status !== "FREE" && prev.status !== "AVAILABLE");
-              const ahoraLibre = (con.status === "FREE" || con.status === "AVAILABLE");
-              if (estabaOcupado && ahoraLibre) {
-                const hora = new Date().toLocaleTimeString('es-ES');
-                const mensaje = `🔔 *${nombre}* se ha liberado en *${est.nombre}*\n⏰ ${hora}\n📍 ${est.direccion}\nEstado: ${prev.status} → ${con.status}`;
-                
-                await enviarTelegram(mensaje);
-                
-                cambiosDetectados.push({
-                  estacion: est.nombre,
-                  conector: nombre,
-                  estadoAnterior: prev.status,
-                  estadoNuevo: con.status,
-                  timestamp: new Date().toISOString()
-                });
-                
-                await guardarLog("CAMBIO", est.nombre, `Conector ${nombre} cambió de ${prev.status} a ${con.status}`);
-                notificacionesEnviadas++;
-              }
             }
+            
+            const nombre = con.visualRef || con.id;
+            
+            // Enviar notificación SOLO si cambió a LIBRE
+            const estabaOcupado = (prev.status !== "FREE" && prev.status !== "AVAILABLE");
+            const ahoraLibre = (con.status === "FREE" || con.status === "AVAILABLE");
+            if (estabaOcupado && ahoraLibre) {
+              const hora = new Date().toLocaleTimeString('es-ES');
+              const mensaje = `🔔 *${nombre}* se ha liberado en *${est.nombre}*\n⏰ ${hora}\n📍 ${est.direccion}\nEstado: ${prev.status} → ${con.status}`;
+              
+              await enviarTelegram(mensaje);
+              
+              cambiosDetectados.push({
+                estacion: est.nombre,
+                conector: nombre,
+                estadoAnterior: prev.status,
+                estadoNuevo: con.status,
+                timestamp: new Date().toISOString()
+              });
+              
+              await guardarLog("CAMBIO", est.nombre, `Conector ${nombre} cambió de ${prev.status} a ${con.status}`);
+              notificacionesEnviadas++;
+            }
+          } else if (timestampRecord && timestampRecord.status_changed_at) {
+            // Estado sin cambios - usar timestamp existente
+            con.status_changed_at = timestampRecord.status_changed_at;
+            console.log(`[v0] Estado sin cambios para conector ${con.id}, timestamp: ${con.status_changed_at}`);
           } else {
-            // Primera vez que se ve este conector, crear timestamp único basado en su ID
-            // Usar un hash robusto del ID completo para distribuir timestamps
-            let hash = 0;
-            const idStr = con.id.toString();
-            for (let i = 0; i < idStr.length; i++) {
-              const char = idStr.charCodeAt(i);
-              hash = ((hash << 5) - hash) + char;
-              hash = hash & hash; // Convertir a 32-bit integer
-            }
-            const idHash = Math.abs(hash) % 60;
-            const timestampOffset = new Date();
-            timestampOffset.setSeconds(timestampOffset.getSeconds() - idHash);
-            con.status_changed_at = timestampOffset.toISOString();
-            console.log(`[v0] Primer registro para conector ${con.id}, hash=${idHash}, timestamp: ${con.status_changed_at}`);
+            // Primer registro de este conector - crear timestamp inicial
+            con.status_changed_at = new Date().toISOString();
+            await guardarTimestampConector(con.id, est.id, con.status, con.status_changed_at);
+            console.log(`[v0] Primer registro para conector ${con.id}, timestamp: ${con.status_changed_at}`);
           }
         }
         
