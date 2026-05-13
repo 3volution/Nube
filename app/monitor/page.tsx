@@ -57,11 +57,9 @@ export default function MonitorPage() {
 
   useEffect(() => {
     fetchData();
-    if (!autoRefresh) return;
-
     const interval = setInterval(fetchData, 30000);
     return () => clearInterval(interval);
-  }, [autoRefresh]);
+  }, []);
 
   const getStatusColor = (status) => {
     if (status === 'FREE' || status === 'AVAILABLE') {
@@ -151,52 +149,7 @@ export default function MonitorPage() {
           </div>
         )}
 
-        {/* Controls */}
-        <div className="flex gap-4 mb-6 flex-wrap">
-          <button
-            onClick={() => {
-              setLoading(true);
-              fetchData();
-            }}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition"
-          >
-            Actualizar Ahora
-          </button>
-          <button
-            onClick={() => setAutoRefresh(!autoRefresh)}
-            className={`px-4 py-2 rounded-lg transition ${
-              autoRefresh
-                ? 'bg-green-600 hover:bg-green-700'
-                : 'bg-slate-600 hover:bg-slate-700'
-            } text-white`}
-          >
-            {autoRefresh ? 'Auto-actualizar: ON' : 'Auto-actualizar: OFF'}
-          </button>
-
-          {/* Tabs */}
-          <div className="flex gap-2 ml-auto">
-            <button
-              onClick={() => setSelectedTab('estaciones')}
-              className={`px-4 py-2 rounded-lg transition ${
-                selectedTab === 'estaciones'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-slate-600 text-slate-300 hover:bg-slate-500'
-              }`}
-            >
-              Estaciones
-            </button>
-            <button
-              onClick={() => setSelectedTab('cambios')}
-              className={`px-4 py-2 rounded-lg transition ${
-                selectedTab === 'cambios'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-slate-600 text-slate-300 hover:bg-slate-500'
-              }`}
-            >
-              Cambios de Estado
-            </button>
-          </div>
-        </div>
+        {/* Controls - REMOVED: Actualizar Ahora, Auto-actualizar, Estaciones, Cambios */}
 
         {loading ? (
           <div className="flex justify-center items-center h-96">
@@ -204,94 +157,46 @@ export default function MonitorPage() {
           </div>
         ) : (
           <>
-            {/* Stations Tab */}
-            {selectedTab === 'estaciones' && (
-              <div className="mb-8">
-                <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-2xl font-bold text-white">Estado de Estaciones</h2>
-                  <p className="text-slate-400 text-sm">Última actualización: {displayStations.length > 0 ? displayStations[0].lastCheck : new Date().toLocaleString('es-ES')}</p>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {displayStations.map(station => (
-                    <div
-                      key={station.id}
-                      className="bg-slate-700 rounded-lg p-4 border border-slate-600 hover:border-slate-500 transition"
-                    >
-                      <div className="flex justify-between items-start mb-3">
-                        <div>
-                          <h3 className="text-white font-bold text-lg">{station.name}</h3>
-                        </div>
+            {/* Stations Grid - ALWAYS VISIBLE */}
+            <div className="mb-8">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-2xl font-bold text-white">Estado de Estaciones</h2>
+                <p className="text-slate-400 text-sm">Última actualización: {displayStations.length > 0 ? displayStations[0].lastCheck : new Date().toLocaleString('es-ES')}</p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {displayStations.map(station => (
+                  <div
+                    key={station.id}
+                    className="bg-slate-700 rounded-lg p-4 border border-slate-600 hover:border-slate-500 transition"
+                  >
+                    <div className="flex justify-between items-start mb-4">
+                      <div>
+                        <h3 className="text-white font-bold text-2xl">{station.name}</h3>
                       </div>
+                    </div>
 
-                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-2 lg:grid-cols-3 gap-2 max-h-96 overflow-y-auto pr-2">
-                        {station.connectors.map((connector, idx) => (
-                          <div
-                            key={idx}
-                            className={`p-3 rounded-lg border-2 flex flex-col justify-between h-full ${getStatusColor(connector.status)}`}
-                          >
-                            <div className="text-xs opacity-75 mb-1 truncate">
-                              ID: {connector.id}
-                            </div>
-                            <div className="flex flex-col gap-1">
-                              <div className="flex items-center justify-between gap-2 flex-wrap">
-                                <span className="text-lg sm:text-xl font-bold whitespace-nowrap">{connector.status_display}</span>
-                              </div>
-                              <span className="text-sm sm:text-base font-semibold leading-tight break-words">{connector.time_in_state}</span>
+                    <div className="grid grid-cols-1 gap-3 max-h-96 overflow-y-auto pr-2">
+                      {station.connectors.map((connector, idx) => (
+                        <div
+                          key={idx}
+                          className={`p-4 rounded-lg border-2 flex flex-col justify-center h-24 ${getStatusColor(connector.status)}`}
+                        >
+                          <div className="text-xs opacity-75 mb-2">
+                            ID: {connector.id}
+                          </div>
+                          <div className="flex flex-col gap-2">
+                            <div className="flex items-baseline gap-3">
+                              <span className="text-3xl font-bold">{connector.status_display}</span>
+                              <span className="text-2xl font-semibold">{connector.time_in_state}</span>
                             </div>
                           </div>
-                        ))}
-                      </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ))}
               </div>
-            )}
-
-            {/* State Changes Tab */}
-            {selectedTab === 'cambios' && (
-              <div className="mb-8">
-                <h2 className="text-2xl font-bold text-white mb-4">Registro de Cambios de Estado</h2>
-                <div className="bg-slate-700 rounded-lg overflow-hidden border border-slate-600">
-                  {stateChanges.length === 0 ? (
-                    <div className="p-6 text-center text-slate-400">
-                      No hay cambios de estado registrados
-                    </div>
-                  ) : (
-                    <div className="max-h-96 overflow-y-auto">
-                      <table className="w-full text-sm">
-                        <thead className="bg-slate-800 border-b border-slate-600 sticky top-0">
-                          <tr>
-                            <th className="px-4 py-3 text-left text-slate-300 font-semibold">Fecha</th>
-                            <th className="px-4 py-3 text-left text-slate-300 font-semibold">Día</th>
-                            <th className="px-4 py-3 text-left text-slate-300 font-semibold">Hora</th>
-                            <th className="px-4 py-3 text-left text-slate-300 font-semibold">Conector</th>
-                            <th className="px-4 py-3 text-left text-slate-300 font-semibold">Estación</th>
-                            <th className="px-4 py-3 text-left text-slate-300 font-semibold">Estado</th>
-                            <th className="px-4 py-3 text-left text-slate-300 font-semibold">Tiempo Anterior</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {stateChanges.map((change, idx) => (
-                            <tr key={idx} className={`border-b border-slate-600 ${getStateChangeColor(change.estadoNuevo)}`}>
-                              <td className="px-4 py-2 text-gray-700 font-mono text-xs">{change.fecha}</td>
-                              <td className="px-4 py-2 text-gray-700 text-sm">{change.dia}</td>
-                              <td className="px-4 py-2 text-gray-700 font-mono text-sm">{change.hora}</td>
-                              <td className="px-4 py-2 text-gray-700 font-bold">{change.connectorId}</td>
-                              <td className="px-4 py-2 text-gray-700">{change.stationName}</td>
-                              <td className="px-4 py-2 font-bold">
-                                <span className="mr-2">{getStateChangeIcon(change.estadoNuevo)}</span>
-                                {change.estadoAnterior} → {change.estadoNuevo}
-                              </td>
-                              <td className="px-4 py-2 text-gray-700 text-xs">{change.tiempoEnEstadoAnterior}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
+            </div>
 
             {/* Status Footer */}
             <div className="bg-slate-700 rounded-lg p-4 border border-slate-600">
