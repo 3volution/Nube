@@ -318,14 +318,14 @@ export default function MonitorPage() {
                         <h3 className="text-white font-bold text-2xl">{station.name}</h3>
                       </div>
                       <div className="text-right">
-                        <div className="flex flex-col items-end gap-2">
+                        <div className="flex items-center gap-3 justify-end">
+                          <div className="flex items-center gap-1 text-purple-400 font-bold text-sm">
+                            <span>📊</span>
+                            <span>{occupancyPerStation[station.name] || 0}%</span>
+                          </div>
                           <div className="flex items-center gap-1 text-yellow-400 font-bold">
                             <span className="text-lg">🔌🚗</span>
                             <span>{dailyChargesPerStation[station.name] || 0}</span>
-                          </div>
-                          <div className="flex items-center gap-1 text-purple-400 font-bold text-sm">
-                            <span>📊</span>
-                            <span>{occupancyPerStation[station.name] || 0}% ocupada</span>
                           </div>
                         </div>
                       </div>
