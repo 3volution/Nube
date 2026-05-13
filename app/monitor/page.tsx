@@ -207,7 +207,10 @@ export default function MonitorPage() {
             {/* Stations Tab */}
             {selectedTab === 'estaciones' && (
               <div className="mb-8">
-                <h2 className="text-2xl font-bold text-white mb-4">Estado de Estaciones</h2>
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-2xl font-bold text-white">Estado de Estaciones</h2>
+                  <p className="text-slate-400 text-sm">Última actualización: {displayStations.length > 0 ? displayStations[0].lastCheck : new Date().toLocaleString('es-ES')}</p>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {displayStations.map(station => (
                     <div
@@ -238,10 +241,6 @@ export default function MonitorPage() {
                           </div>
                         ))}
                       </div>
-
-                      <p className="text-slate-500 text-xs mt-3 pt-3 border-t border-slate-600">
-                        {station.lastCheck}
-                      </p>
                     </div>
                   ))}
                 </div>
