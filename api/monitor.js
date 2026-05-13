@@ -304,11 +304,20 @@ export default async function handler(req, res) {
         }
         
         // DEBUG: Log de los offsets que se van a guardar
-        console.log(`[v0 OFFSET] Estación ${est.nombre}: offsets =`, actuales.map((c, i) => ({ id: c.id, timestamp: c.status_changed_at, index: i })));
+        console.log(`[v0 OFFSET] Estación ${est.nombre}: offsets =`, actuales.map((c, i) => ({ id: c.id, timestamp: c.status_changed_at, index: i, debug_offset: c._debug_offset, debug_ts: c._debug_timestamp_calculated })));
         
         // Guardar estado actual en Supabase con timestamps
         
         // Usar UPSERT en lugar de DELETE + INSERT para mantener los timestamps
+        const bodyToSave = {
+          station_id: String(est.id),
+          station_name: est.nombre,
+          state: actuales,
+          last_check: new Date().toISOString()
+        };
+        
+        console.log(`[v0 SAVE] Guardando para ${est.nombre}:`, JSON.stringify(bodyToSave.state[0], null, 2));
+        
         const upsertResponse = await fetch(
           `${SUPABASE_URL}/rest/v1/charger_state?station_id=eq.${est.id}`,
           {
@@ -319,12 +328,7 @@ export default async function handler(req, res) {
               "apikey": SUPABASE_KEY,
               "Prefer": "return=minimal"
             },
-            body: JSON.stringify({
-              station_id: String(est.id),
-              station_name: est.nombre,
-              state: actuales,
-              last_check: new Date().toISOString()
-            })
+            body: JSON.stringify(bodyToSave)
           }
         );
         
@@ -350,12 +354,7 @@ export default async function handler(req, res) {
                 "Authorization": `Bearer ${SUPABASE_KEY}`,
                 "apikey": SUPABASE_KEY
               },
-              body: JSON.stringify({
-                station_id: String(est.id),
-                station_name: est.nombre,
-                state: actuales,
-                last_check: new Date().toISOString()
-              })
+              body: JSON.stringify(bodyToSave)
             }
           );
           
