@@ -2,6 +2,16 @@ export async function GET(request) {
   const SUPABASE_URL = process.env.SUPABASE_URL;
   const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY;
 
+  console.log("[v0] SUPABASE_URL:", SUPABASE_URL ? "✓ CONFIGURADA" : "✗ NO ENCONTRADA");
+  console.log("[v0] SUPABASE_KEY:", SUPABASE_KEY ? "✓ CONFIGURADA" : "✗ NO ENCONTRADA");
+
+  if (!SUPABASE_URL || !SUPABASE_KEY) {
+    return Response.json(
+      { success: false, error: "Variables de entorno no configuradas (SUPABASE_URL o SUPABASE_ANON_KEY falta)" },
+      { status: 500 }
+    );
+  }
+
   function formatearTiempoTranscurrido(timestamp) {
     if (!timestamp) return 'Sin datos';
     const fecha = new Date(timestamp);
@@ -19,6 +29,8 @@ export async function GET(request) {
   }
 
   try {
+    console.log("[v0] Fetching from:", `${SUPABASE_URL}/rest/v1/charger_state`);
+    
     const response = await fetch(
       `${SUPABASE_URL}/rest/v1/charger_state?order=station_name.asc`,
       {
@@ -29,8 +41,12 @@ export async function GET(request) {
       }
     );
 
+    console.log("[v0] Response status:", response.status, response.statusText);
+
     if (!response.ok) {
-      throw new Error(`Error fetching charger state: ${response.statusText}`);
+      const errorText = await response.text();
+      console.log("[v0] Error response:", errorText);
+      throw new Error(`Error fetching charger state: ${response.status} ${response.statusText}`);
     }
 
     const stations = await response.json();
