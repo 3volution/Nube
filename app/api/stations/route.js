@@ -82,7 +82,9 @@ export async function GET(request) {
           status: connector.status,
           status_display: connector.status === 'FREE' || connector.status === 'AVAILABLE' ? 'LIBRE' : 'OCUPADO',
           time_in_state: timeInState,
-          status_changed_at: connectorTimestamp
+          status_changed_at: connectorTimestamp,
+          debug_offset: connector.debug_offset,
+          debug_timestamp_calculated: connector.debug_timestamp_calculated
         };
       });
       
