@@ -1,13 +1,23 @@
 export async function GET(request) {
-  const SUPABASE_URL = process.env.SUPABASE_URL;
-  const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY;
+  const ELECTROMAPS_USER = process.env.ELECTROMAPS_USER;
+  const ELECTROMAPS_PASS = process.env.ELECTROMAPS_PASS;
 
-  if (!SUPABASE_URL || !SUPABASE_KEY) {
+  if (!ELECTROMAPS_USER || !ELECTROMAPS_PASS) {
     return Response.json(
-      { success: false, error: "Variables de entorno no configuradas" },
+      { success: false, error: "Credenciales de Electromaps no configuradas" },
       { status: 500 }
     );
   }
+
+  // Estaciones a monitorear
+  const ESTACIONES = [
+    { nombre: "Estacion Bus", id: 828537, direccion: "Av. de la Libertad, Mérida" },
+    { nombre: "Avda. Roma", id: 828524, direccion: "Avda. de Roma, Mérida" },
+    { nombre: "Plaza Xirgu", id: 828523, direccion: "Pl. Margarita Xirgu, Mérida" },
+    { nombre: "Calle Almendralejo (1)", id: 828534, direccion: "C. Almendralejo, Mérida" },
+    { nombre: "Calle Almendralejo (2)", id: 828535, direccion: "C. Almendralejo, Mérida" },
+    { nombre: "Avda. del Prado", id: 828538, direccion: "Avda. del Prado, Mérida" }
+  ];
 
   function formatearTiempoTranscurrido(timestamp) {
     if (!timestamp) {
@@ -32,75 +42,83 @@ export async function GET(request) {
     }
   }
 
-  try {
-    // Obtener estaciones
-    const stationsRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/charger_state?order=station_name.asc`,
-      {
-        headers: {
-          "Authorization": `Bearer ${SUPABASE_KEY}`,
-          "apikey": SUPABASE_KEY
-        }
-      }
-    );
-
-    if (!stationsRes.ok) {
-      throw new Error(`Error fetching charger state: ${stationsRes.status}`);
-    }
-
-    const stations = await stationsRes.json();
-
-    // Obtener todos los timestamps de conectores
-    const timestampsRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/connector_timestamps`,
-      {
-        headers: {
-          "Authorization": `Bearer ${SUPABASE_KEY}`,
-          "apikey": SUPABASE_KEY
-        }
-      }
-    );
-
-    let timestampMap = {};
-    if (timestampsRes.ok) {
-      const timestamps = await timestampsRes.json();
-      // Crear un mapa de connector_id -> timestamp
-      timestamps.forEach(ts => {
-        timestampMap[ts.connector_id] = ts.status_changed_at;
-      });
-    }
-
-    const formattedStations = stations.map(station => {
-      const formattedConnectors = (station.state || []).map(connector => {
-        // Buscar el timestamp en la tabla connector_timestamps
-        const connectorTimestamp = timestampMap[String(connector.id)] || connector.status_changed_at;
-        const timeInState = formatearTiempoTranscurrido(connectorTimestamp);
-        
-        return {
-          id: connector.id,
-          visualRef: connector.visualRef,
-          status: connector.status,
-          status_display: connector.status === 'FREE' || connector.status === 'AVAILABLE' ? 'LIBRE' : 'OCUPADO',
-          time_in_state: timeInState,
-          status_changed_at: connectorTimestamp,
-          debug_offset: connector.debug_offset,
-          debug_timestamp_calculated: connector.debug_timestamp_calculated
-        };
-      });
-      
-      return {
-        id: station.station_id,
-        name: station.station_name,
-        connectors: formattedConnectors,
-        lastCheck: new Date(station.last_check).toLocaleString('es-ES'),
-        conectoresLibres: formattedConnectors.filter(c => 
-          c.status === 'FREE' || c.status === 'AVAILABLE'
-        ).length,
-        conectoresOcupados: formattedConnectors.filter(c => 
-          c.status !== 'FREE' && c.status !== 'AVAILABLE'
-        ).length
-      };
+  async function obtenerTokenElectromaps(user, pass) {
+    const COGNITO_URL = "https://cognito-idp.eu-west-1.amazonaws.com/";
+    const CLIENT_ID = "539ogq18bspa4d1v2bi01g5c01";
+    
+    const res = await fetch(COGNITO_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-amz-json-1.1",
+        "X-Amz-Target": "AWSCognitoIdentityProviderService.InitiateAuth"
+      },
+      body: JSON.stringify({
+        AuthFlow: "USER_PASSWORD_AUTH",
+        ClientId: CLIENT_ID,
+        AuthParameters: { USERNAME: user, PASSWORD: pass }
+      })
     });
+    const data = await res.json();
+    if (data.AuthenticationResult && data.AuthenticationResult.AccessToken) {
+      return data.AuthenticationResult.AccessToken;
+    }
+    throw new Error("Error en login: " + JSON.stringify(data));
+  }
+
+  async function consultarEstado(id, token) {
+    const res = await fetch(`https://www.electromaps.com/mapi/v2/locations/${id}`, {
+      headers: { "Accept": "application/json", "X-Em-Oidc-Accesstoken": token }
+    });
+    const data = await res.json();
+    if (!data || !data.connectors) return [];
+    return data.connectors;
+  }
+
+  try {
+    // Obtener token de Electromaps
+    const token = await obtenerTokenElectromaps(ELECTROMAPS_USER, ELECTROMAPS_PASS);
+    
+    // Obtener datos de todas las estaciones directamente de Electromaps
+    const formattedStations = await Promise.all(
+      ESTACIONES.map(async (est) => {
+        try {
+          const conectoresRaw = await consultarEstado(est.id, token);
+          
+          const formattedConnectors = conectoresRaw.map(connector => ({
+            id: connector.id,
+            visualRef: connector.visualRef,
+            status: connector.status,
+            status_display: connector.status === 'FREE' || connector.status === 'AVAILABLE' ? 'LIBRE' : 'OCUPADO',
+            time_in_state: 'Tiempo real',
+            status_changed_at: new Date().toISOString()
+          }));
+          
+          return {
+            id: est.id,
+            name: est.nombre,
+            connectors: formattedConnectors,
+            lastCheck: new Date().toLocaleString('es-ES'),
+            conectoresLibres: formattedConnectors.filter(c => 
+              c.status === 'FREE' || c.status === 'AVAILABLE'
+            ).length,
+            conectoresOcupados: formattedConnectors.filter(c => 
+              c.status !== 'FREE' && c.status !== 'AVAILABLE'
+            ).length
+          };
+        } catch (error) {
+          console.error(`[v0] Error obteniendo datos de ${est.nombre}:`, error.message);
+          return {
+            id: est.id,
+            name: est.nombre,
+            connectors: [],
+            lastCheck: new Date().toLocaleString('es-ES'),
+            conectoresLibres: 0,
+            conectoresOcupados: 0,
+            error: error.message
+          };
+        }
+      })
+    );
 
     return Response.json({
       success: true,
@@ -108,7 +126,7 @@ export async function GET(request) {
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    console.error("[v0] Error fetching data:", error);
+    console.error("[v0] Error fetching data from Electromaps:", error);
     return Response.json(
       { success: false, error: error.message },
       { status: 500 }
