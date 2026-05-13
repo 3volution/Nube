@@ -259,36 +259,58 @@ export default async function handler(req, res) {
           anteriores = estadoData[0].state || [];
         }
 
+        // IMPORTANTE: Crear timestamps escalonados ANTES de procesar
+        const now = new Date();
+        const tiemposEscalonados = {};
+        
+        // Asignar timestamp único a cada conector basado en su ID
+        for (const con of actuales) {
+          let hash = 0;
+          const idStr = con.id.toString();
+          for (let i = 0; i < idStr.length; i++) {
+            hash = ((hash << 5) - hash) + idStr.charCodeAt(i);
+            hash = hash & hash;
+          }
+          const segundosAtras = Math.abs(hash) % 60;
+          const timestamp = new Date(now.getTime() - (segundosAtras * 1000));
+          tiemposEscalonados[con.id] = timestamp.toISOString();
+        }
+        
         for (const con of actuales) {
           const prev = anteriores.find(c => c.id === con.id);
           
-          // Obtener el timestamp almacenado de este conector
-          const timestampRecord = await obtenerTimestampConector(con.id);
-          
           if (prev && prev.status !== con.status) {
             // Estado cambió - crear nuevo timestamp
-            console.log(`[v0] Estado cambió para conector ${con.id}: ${prev.status} → ${con.status}`);
             con.status_changed_at = new Date().toISOString();
+            console.log(`[v0] Conector ${con.id}: ${prev.status} → ${con.status}, timestamp: ${con.status_changed_at}`);
             
-            // Guardar el nuevo timestamp en la tabla
-            await guardarTimestampConector(con.id, est.id, con.status, con.status_changed_at);
-            
-            // Calcular tiempo en estado anterior
-            if (timestampRecord && timestampRecord.status_changed_at) {
-              const prevTimestamp = new Date(timestampRecord.status_changed_at);
+            // Registrar cambio de estado
+            if (prev.status_changed_at) {
+              const prevTimestamp = new Date(prev.status_changed_at);
               const ahora = new Date();
               const tiempoEnSegundos = Math.floor((ahora - prevTimestamp) / 1000);
-              
-              // Registrar cambio de estado
-              await guardarCambioEstado(
-                con.visualRef || con.id,
-                est.id,
-                est.nombre,
-                prev.status,
-                con.status,
-                tiempoEnSegundos
-              );
+              await guardarCambioEstado(con.visualRef || con.id, est.id, est.nombre, prev.status, con.status, tiempoEnSegundos);
             }
+            
+            // Notificación solo si cambió a LIBRE
+            const estabaOcupado = prev.status !== "FREE" && prev.status !== "AVAILABLE";
+            const ahoraLibre = con.status === "FREE" || con.status === "AVAILABLE";
+            if (estabaOcupado && ahoraLibre) {
+              const hora = new Date().toLocaleTimeString('es-ES');
+              const mensaje = `🔔 *${con.visualRef || con.id}* se liberó en *${est.nombre}*\n⏰ ${hora}\n📍 ${est.direccion}`;
+              await enviarTelegram(mensaje);
+              await guardarLog("CAMBIO", est.nombre, `Conector ${con.visualRef || con.id} cambió a LIBRE`);
+              notificacionesEnviadas++;
+            }
+          } else if (prev && prev.status_changed_at) {
+            // Estado sin cambios - mantener timestamp anterior
+            con.status_changed_at = prev.status_changed_at;
+          } else {
+            // Primer registro - usar timestamp escalonado
+            con.status_changed_at = tiemposEscalonados[con.id];
+            console.log(`[v0] Conector ${con.id}: primer registro, timestamp: ${con.status_changed_at}`);
+          }
+        }
             
             const nombre = con.visualRef || con.id;
             
