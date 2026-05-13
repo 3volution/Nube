@@ -13,19 +13,30 @@ export async function GET(request) {
   }
 
   function formatearTiempoTranscurrido(timestamp) {
-    if (!timestamp) return 'Sin datos';
-    const fecha = new Date(timestamp);
-    const ahora = new Date();
-    const diferencia = ahora - fecha;
+    if (!timestamp) {
+      console.log("[v0] No timestamp provided for connector");
+      return 'Sin datos';
+    }
     
-    const minutos = Math.floor(diferencia / 60000);
-    const horas = Math.floor(minutos / 60);
-    const dias = Math.floor(horas / 24);
-    
-    if (minutos < 1) return 'Hace segundos';
-    if (minutos < 60) return `Hace ${minutos}m`;
-    if (horas < 24) return `Hace ${horas}h ${minutos % 60}m`;
-    return `Hace ${dias}d ${horas % 24}h`;
+    try {
+      const fecha = new Date(timestamp);
+      const ahora = new Date();
+      const diferencia = ahora - fecha;
+      
+      console.log("[v0] Calculating time - timestamp:", timestamp, "diff:", diferencia);
+      
+      const minutos = Math.floor(diferencia / 60000);
+      const horas = Math.floor(minutos / 60);
+      const dias = Math.floor(horas / 24);
+      
+      if (minutos < 1) return 'Hace segundos';
+      if (minutos < 60) return `Hace ${minutos}m`;
+      if (horas < 24) return `Hace ${horas}h ${minutos % 60}m`;
+      return `Hace ${dias}d ${horas % 24}h`;
+    } catch (e) {
+      console.error("[v0] Error parsing timestamp:", timestamp, e);
+      return 'Error en cálculo';
+    }
   }
 
   try {
@@ -50,6 +61,11 @@ export async function GET(request) {
     }
 
     const stations = await response.json();
+
+    console.log("[v0] Number of stations:", stations.length);
+    if (stations.length > 0) {
+      console.log("[v0] First station connectors:", JSON.stringify(stations[0].state?.slice(0, 2)));
+    }
 
     const formattedStations = stations.map(station => ({
       id: station.station_id,
