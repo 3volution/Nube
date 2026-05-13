@@ -267,6 +267,8 @@ export default async function handler(req, res) {
         actuales.forEach((con, index) => {
           const timestamp = new Date(now.getTime() - (index * 1000)); // Cada conector 1 segundo atrás del anterior
           tiemposEscalonados[con.id] = timestamp.toISOString();
+          con._debug_offset = index; // AGREGAR CAMPO DEBUG
+          con._debug_timestamp_calculated = timestamp.toISOString(); // AGREGAR TIMESTAMP DEBUG
         });
         
         for (const con of actuales) {
@@ -384,7 +386,7 @@ export default async function handler(req, res) {
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    console.error("[v0] Error crítico:", error);
+    console.error("[v0] Error cr��tico:", error);
     await guardarLog("ERROR", "Sistema", `Error crítico: ${error.message}`);
     await enviarTelegram(`⚠️ Error crítico en el monitor: ${error.message}`);
     res.status(500).json({ error: error.message });
