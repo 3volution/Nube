@@ -241,20 +241,20 @@ export default function MonitorPage() {
                               </div>
                               
                               {/* DEBUG BACKEND */}
-                              {(connector._debug_offset !== undefined || connector._debug_timestamp_calculated) && (
+                              {(connector.debug_offset !== undefined || connector.debug_timestamp_calculated) && (
                                 <div className="border-t border-slate-600 pt-1 mt-1">
                                   <div className="text-yellow-400 font-bold mb-1">Backend Debug:</div>
                                   <div>
-                                    <span className="text-yellow-500">Offset asignado:</span> {connector._debug_offset}s
+                                    <span className="text-yellow-500">Offset asignado:</span> {connector.debug_offset}s
                                   </div>
                                   <div>
-                                    <span className="text-yellow-500">Timestamp calc:</span> {connector._debug_timestamp_calculated ? connector._debug_timestamp_calculated.split('T')[1] : 'N/A'}
+                                    <span className="text-yellow-500">Timestamp calc:</span> {connector.debug_timestamp_calculated ? connector.debug_timestamp_calculated.split('T')[1] : 'N/A'}
                                   </div>
                                   <div className="text-yellow-300 mt-1">
-                                    {connector._debug_offset === offsetSeconds ? (
+                                    {connector.debug_offset === offsetSeconds ? (
                                       <span>✓ Offset OK</span>
                                     ) : (
-                                      <span>✗ ERROR: {connector._debug_offset} != {offsetSeconds}</span>
+                                      <span>✗ ERROR: {connector.debug_offset} != {offsetSeconds}</span>
                                     )}
                                   </div>
                                 </div>

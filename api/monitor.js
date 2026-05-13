@@ -271,9 +271,9 @@ export default async function handler(req, res) {
           const offsetTimestamp = new Date(now.getTime() - (index * 1000));
           const offsetTimestampISO = offsetTimestamp.toISOString();
           
-          // Campos debug
-          con._debug_offset = index;
-          con._debug_timestamp_calculated = offsetTimestampISO;
+          // Campos debug (usar propiedades normales sin guión bajo)
+          con.debug_offset = index;
+          con.debug_timestamp_calculated = offsetTimestampISO;
           
           if (prev && prev.status !== con.status) {
             // Estado CAMBIÓ - crear timestamp nuevo (ahora)
