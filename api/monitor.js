@@ -259,7 +259,7 @@ export default async function handler(req, res) {
           anteriores = estadoData[0].state || [];
         }
 
-        // IMPORTANTE: Crear timestamps escalonados ANTES de procesar
+        // Crear timestamps escalonados POR CADA ESTACIÓN
         const now = new Date();
         const tiemposEscalonados = {};
         
@@ -310,31 +310,7 @@ export default async function handler(req, res) {
             con.status_changed_at = tiemposEscalonados[con.id];
             console.log(`[v0] Conector ${con.id}: primer registro, timestamp: ${con.status_changed_at}`);
           }
-        }
-            
-            const nombre = con.visualRef || con.id;
-            
-            // Enviar notificación SOLO si cambió a LIBRE
-            const estabaOcupado = (prev.status !== "FREE" && prev.status !== "AVAILABLE");
-            const ahoraLibre = (con.status === "FREE" || con.status === "AVAILABLE");
-            if (estabaOcupado && ahoraLibre) {
-              const hora = new Date().toLocaleTimeString('es-ES');
-              const mensaje = `🔔 *${nombre}* se ha liberado en *${est.nombre}*\n⏰ ${hora}\n📍 ${est.direccion}\nEstado: ${prev.status} → ${con.status}`;
-              
-              await enviarTelegram(mensaje);
-              
-              cambiosDetectados.push({
-                estacion: est.nombre,
-                conector: nombre,
-                estadoAnterior: prev.status,
-                estadoNuevo: con.status,
-                timestamp: new Date().toISOString()
-              });
-              
-              await guardarLog("CAMBIO", est.nombre, `Conector ${nombre} cambió de ${prev.status} a ${con.status}`);
-              notificacionesEnviadas++;
-            }
-          } else if (timestampRecord && timestampRecord.status_changed_at) {
+        } else if (timestampRecord && timestampRecord.status_changed_at) {
             // Estado sin cambios - usar timestamp existente
             con.status_changed_at = timestampRecord.status_changed_at;
             console.log(`[v0] Estado sin cambios para conector ${con.id}, timestamp: ${con.status_changed_at}`);
