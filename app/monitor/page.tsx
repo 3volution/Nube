@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { APP_VERSION } from '@/app/config/version';
 
 export default function MonitorPage() {
   const [stations, setStations] = useState([]);
@@ -160,7 +161,7 @@ export default function MonitorPage() {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-4xl font-bold text-white mb-2">GuardianCharger Mérida</h1>
+          <h1 className="text-4xl font-bold text-white mb-2">GuardianCharger Mérida <span className="text-lg text-slate-400">{APP_VERSION}</span></h1>
           <p className="text-slate-300">Sistema de monitoreo de cargadores eléctricos de vehículos en tiempo real</p>
         </div>
 
@@ -220,7 +221,7 @@ export default function MonitorPage() {
                             </div>
                             
                             {/* DEBUG PANEL */}
-                            <div className="bg-slate-800 rounded p-2 text-xs text-slate-300 border border-slate-600 font-mono">
+                            <div className="bg-slate-800 rounded p-2 text-xs text-slate-300 border border-slate-600 font-mono space-y-1">
                               <div className="grid grid-cols-2 gap-2">
                                 <div>
                                   <span className="text-slate-400">Timestamp:</span> {statusChangedDate ? statusChangedDate.toISOString().split('T')[1] : 'N/A'}
@@ -238,6 +239,26 @@ export default function MonitorPage() {
                                   <span className="text-slate-400">Offset esperado:</span> {offsetSeconds}s
                                 </div>
                               </div>
+                              
+                              {/* DEBUG BACKEND */}
+                              {(connector._debug_offset !== undefined || connector._debug_timestamp_calculated) && (
+                                <div className="border-t border-slate-600 pt-1 mt-1">
+                                  <div className="text-yellow-400 font-bold mb-1">Backend Debug:</div>
+                                  <div>
+                                    <span className="text-yellow-500">Offset asignado:</span> {connector._debug_offset}s
+                                  </div>
+                                  <div>
+                                    <span className="text-yellow-500">Timestamp calc:</span> {connector._debug_timestamp_calculated ? connector._debug_timestamp_calculated.split('T')[1] : 'N/A'}
+                                  </div>
+                                  <div className="text-yellow-300 mt-1">
+                                    {connector._debug_offset === offsetSeconds ? (
+                                      <span>✓ Offset OK</span>
+                                    ) : (
+                                      <span>✗ ERROR: {connector._debug_offset} != {offsetSeconds}</span>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           </div>
                         );
