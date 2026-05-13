@@ -90,7 +90,8 @@ export async function GET(request) {
             status: connector.status,
             status_display: connector.status === 'FREE' || connector.status === 'AVAILABLE' ? 'LIBRE' : 'OCUPADO',
             time_in_state: 'Tiempo real',
-            status_changed_at: new Date().toISOString()
+            status_updated_at: connector.status_updated_at,
+            status_changed_at: connector.status_updated_at
           }));
           
           return {
