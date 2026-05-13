@@ -317,10 +317,20 @@ export default async function handler(req, res) {
             con.status_changed_at = timestampRecord.status_changed_at;
             console.log(`[v0] Estado sin cambios para conector ${con.id}, timestamp: ${con.status_changed_at}`);
           } else {
-            // Primer registro de este conector - crear timestamp inicial
-            con.status_changed_at = new Date().toISOString();
+            // Primer registro de este conector - crear timestamp inicial ESCALONADO por ID
+            const ahora = new Date();
+            // Usar el ID del conector para crear offset único (0-59 segundos)
+            let hash = 0;
+            const idStr = con.id.toString();
+            for (let i = 0; i < idStr.length; i++) {
+              hash = ((hash << 5) - hash) + idStr.charCodeAt(i);
+              hash = hash & hash;
+            }
+            const segundosAtras = Math.abs(hash) % 60;
+            ahora.setSeconds(ahora.getSeconds() - segundosAtras);
+            con.status_changed_at = ahora.toISOString();
             await guardarTimestampConector(con.id, est.id, con.status, con.status_changed_at);
-            console.log(`[v0] Primer registro para conector ${con.id}, timestamp: ${con.status_changed_at}`);
+            console.log(`[v0] Primer registro para conector ${con.id}, offset=${segundosAtras}s, timestamp: ${con.status_changed_at}`);
           }
         }
         
