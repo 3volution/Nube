@@ -99,6 +99,45 @@ async function guardarLog(tipo, estacion, mensaje) {
   }
 }
 
+async function guardarCambioEstado(connectorId, stationId, stationName, estadoAnterior, estadoNuevo, tiempoEnEstadoAnterior) {
+  try {
+    const ahora = new Date();
+    const fecha = ahora.toISOString().split('T')[0];
+    const dias = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+    const dia = dias[ahora.getDay()];
+    const hora = ahora.toTimeString().slice(0, 8);
+
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/connector_state_changes`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${SUPABASE_KEY}`,
+        "apikey": SUPABASE_KEY
+      },
+      body: JSON.stringify({
+        fecha,
+        dia,
+        hora,
+        connector_id: String(connectorId),
+        station_id: String(stationId),
+        station_name: stationName,
+        estado_anterior: estadoAnterior,
+        estado_nuevo: estadoNuevo,
+        tiempo_en_estado_anterior_segundos: tiempoEnEstadoAnterior
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      console.error("[v0] Error guardando cambio de estado:", error);
+    } else {
+      console.log("[v0] Cambio de estado registrado:", connectorId, estadoAnterior, "→", estadoNuevo);
+    }
+  } catch (error) {
+    console.error("[v0] Error al guardar cambio de estado:", error.message);
+  }
+}
+
 export default async function handler(req, res) {
   if (req.query.token !== process.env.CRON_SECRET) {
     return res.status(401).json({ error: "Unauthorized" });
@@ -154,11 +193,28 @@ export default async function handler(req, res) {
             con.status_changed_at = prev.status_changed_at;
           }
           
-          if (prev) {
+          if (prev && prev.status !== con.status) {
+            // Calcular tiempo en estado anterior
+            const prevTimestamp = new Date(prev.status_changed_at);
+            const ahora = new Date();
+            const tiempoEnSegundos = Math.floor((ahora - prevTimestamp) / 1000);
+            
+            // Registrar CUALQUIER cambio de estado
+            await guardarCambioEstado(
+              con.visualRef || con.id,
+              est.id,
+              est.nombre,
+              prev.status,
+              con.status,
+              tiempoEnSegundos
+            );
+            
+            const nombre = con.visualRef || con.id;
+            
+            // Enviar notificación SOLO si cambió a LIBRE
             const estabaOcupado = (prev.status !== "FREE" && prev.status !== "AVAILABLE");
             const ahoraLibre = (con.status === "FREE" || con.status === "AVAILABLE");
             if (estabaOcupado && ahoraLibre) {
-              const nombre = con.visualRef || con.id;
               const hora = new Date().toLocaleTimeString('es-ES');
               const mensaje = `🔔 *${nombre}* se ha liberado en *${est.nombre}*\n⏰ ${hora}\n📍 ${est.direccion}\nEstado: ${prev.status} → ${con.status}`;
               
