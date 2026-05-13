@@ -267,17 +267,14 @@ export default async function handler(req, res) {
         actuales.forEach((con, index) => {
           const timestamp = new Date(now.getTime() - (index * 1000)); // Cada conector 1 segundo atrás del anterior
           tiemposEscalonados[con.id] = timestamp.toISOString();
-          // Guardar en logs para debugging
-          guardarLog("INFO", est.nombre, `Offset: ${con.id} index=${index} timestamp=${tiemposEscalonados[con.id]}`);
         });
         
         for (const con of actuales) {
           const prev = anteriores.find(c => c.id === con.id);
           
           if (prev && prev.status !== con.status) {
-            // Estado cambió - crear nuevo timestamp
+            // Estado CAMBIÓ - crear timestamp nuevo
             con.status_changed_at = new Date().toISOString();
-            console.log(`[v0] Conector ${con.id}: ${prev.status} → ${con.status}, timestamp: ${con.status_changed_at}`);
             
             // Registrar cambio de estado
             if (prev.status_changed_at) {
@@ -298,55 +295,12 @@ export default async function handler(req, res) {
               notificacionesEnviadas++;
             }
           } else {
-            // No cambió o es primer registro - usar timestamp escalonado
+            // Estado NO CAMBIÓ o es primer registro - usar timestamp escalonado
             con.status_changed_at = tiemposEscalonados[con.id];
-            guardarLog("INFO", est.nombre, `Asignado offset a ${con.id}: ${con.status_changed_at}`);
-          }
-        }
-            
-            // Notificación solo si cambió a LIBRE
-            const estabaOcupado = prev.status !== "FREE" && prev.status !== "AVAILABLE";
-            const ahoraLibre = con.status === "FREE" || con.status === "AVAILABLE";
-            if (estabaOcupado && ahoraLibre) {
-              const hora = new Date().toLocaleTimeString('es-ES');
-              const mensaje = `🔔 *${con.visualRef || con.id}* se liberó en *${est.nombre}*\n⏰ ${hora}\n📍 ${est.direccion}`;
-              await enviarTelegram(mensaje);
-              await guardarLog("CAMBIO", est.nombre, `Conector ${con.visualRef || con.id} cambió a LIBRE`);
-              notificacionesEnviadas++;
-            }
-          } else if (prev && prev.status_changed_at) {
-            // Estado sin cambios - mantener timestamp anterior
-            con.status_changed_at = prev.status_changed_at;
-          } else {
-            // Primer registro - usar timestamp escalonado
-            con.status_changed_at = tiemposEscalonados[con.id];
-            console.log(`[v0] Conector ${con.id}: primer registro, timestamp: ${con.status_changed_at}`);
-          }
-        } else if (timestampRecord && timestampRecord.status_changed_at) {
-            // Estado sin cambios - usar timestamp existente
-            con.status_changed_at = timestampRecord.status_changed_at;
-            console.log(`[v0] Estado sin cambios para conector ${con.id}, timestamp: ${con.status_changed_at}`);
-          } else {
-            // Primer registro de este conector - crear timestamp inicial ESCALONADO por ID
-            const ahora = new Date();
-            // Usar el ID del conector para crear offset único (0-59 segundos)
-            let hash = 0;
-            const idStr = con.id.toString();
-            for (let i = 0; i < idStr.length; i++) {
-              hash = ((hash << 5) - hash) + idStr.charCodeAt(i);
-              hash = hash & hash;
-            }
-            const segundosAtras = Math.abs(hash) % 60;
-            ahora.setSeconds(ahora.getSeconds() - segundosAtras);
-            con.status_changed_at = ahora.toISOString();
-            await guardarTimestampConector(con.id, est.id, con.status, con.status_changed_at);
-            console.log(`[v0] Primer registro para conector ${con.id}, offset=${segundosAtras}s, timestamp: ${con.status_changed_at}`);
           }
         }
         
         // Guardar estado actual en Supabase con timestamps
-        console.log("[v0] Guardando estado para estación:", est.nombre, "ID:", est.id);
-        console.log("[v0] Conectores a guardar:", JSON.stringify(actuales.slice(0, 2).map(c => ({ id: c.id, timestamp: c.status_changed_at }))));
         
         // Usar UPSERT en lugar de DELETE + INSERT para mantener los timestamps
         const upsertResponse = await fetch(
@@ -368,11 +322,8 @@ export default async function handler(req, res) {
           }
         );
         
-        console.log("[v0] Upsert response status:", upsertResponse.status);
-        
         if (!upsertResponse.ok) {
           // Si UPDATE falla, hacer DELETE + INSERT
-          console.log("[v0] PUT falló, intentando DELETE + INSERT");
           const deleteResponse = await fetch(
             `${SUPABASE_URL}/rest/v1/charger_state?station_id=eq.${est.id}`,
             {
