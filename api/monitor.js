@@ -302,6 +302,23 @@ export default async function handler(req, res) {
               await guardarLog("CAMBIO", est.nombre, `Conector ${con.visualRef || con.id} cambió a LIBRE`);
               notificacionesEnviadas++;
             }
+          } else {
+            // No cambió o es primer registro - usar timestamp escalonado
+            con.status_changed_at = tiemposEscalonados[con.id];
+            console.log(`[v0] Conector ${con.id}: timestamp escalonado: ${con.status_changed_at}`);
+          }
+        }
+            
+            // Notificación solo si cambió a LIBRE
+            const estabaOcupado = prev.status !== "FREE" && prev.status !== "AVAILABLE";
+            const ahoraLibre = con.status === "FREE" || con.status === "AVAILABLE";
+            if (estabaOcupado && ahoraLibre) {
+              const hora = new Date().toLocaleTimeString('es-ES');
+              const mensaje = `🔔 *${con.visualRef || con.id}* se liberó en *${est.nombre}*\n⏰ ${hora}\n📍 ${est.direccion}`;
+              await enviarTelegram(mensaje);
+              await guardarLog("CAMBIO", est.nombre, `Conector ${con.visualRef || con.id} cambió a LIBRE`);
+              notificacionesEnviadas++;
+            }
           } else if (prev && prev.status_changed_at) {
             // Estado sin cambios - mantener timestamp anterior
             con.status_changed_at = prev.status_changed_at;
