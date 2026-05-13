@@ -4,7 +4,7 @@ export async function GET(request) {
 
   if (!SUPABASE_URL || !SUPABASE_KEY) {
     return Response.json(
-      { success: false, error: "Variables de entorno no configuradas (SUPABASE_URL o SUPABASE_ANON_KEY falta)" },
+      { success: false, error: "Variables de entorno no configuradas" },
       { status: 500 }
     );
   }
@@ -33,7 +33,8 @@ export async function GET(request) {
   }
 
   try {
-    const response = await fetch(
+    // Obtener estaciones
+    const stationsRes = await fetch(
       `${SUPABASE_URL}/rest/v1/charger_state?order=station_name.asc`,
       {
         headers: {
@@ -43,16 +44,37 @@ export async function GET(request) {
       }
     );
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Error fetching charger state: ${response.status} ${response.statusText}`);
+    if (!stationsRes.ok) {
+      throw new Error(`Error fetching charger state: ${stationsRes.status}`);
     }
 
-    const stations = await response.json();
+    const stations = await stationsRes.json();
+
+    // Obtener todos los timestamps de conectores
+    const timestampsRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/connector_timestamps`,
+      {
+        headers: {
+          "Authorization": `Bearer ${SUPABASE_KEY}`,
+          "apikey": SUPABASE_KEY
+        }
+      }
+    );
+
+    let timestampMap = {};
+    if (timestampsRes.ok) {
+      const timestamps = await timestampsRes.json();
+      // Crear un mapa de connector_id -> timestamp
+      timestamps.forEach(ts => {
+        timestampMap[ts.connector_id] = ts.status_changed_at;
+      });
+    }
 
     const formattedStations = stations.map(station => {
       const formattedConnectors = (station.state || []).map(connector => {
-        const timeInState = formatearTiempoTranscurrido(connector.status_changed_at);
+        // Buscar el timestamp en la tabla connector_timestamps
+        const connectorTimestamp = timestampMap[String(connector.id)] || connector.status_changed_at;
+        const timeInState = formatearTiempoTranscurrido(connectorTimestamp);
         
         return {
           id: connector.id,
@@ -60,7 +82,7 @@ export async function GET(request) {
           status: connector.status,
           status_display: connector.status === 'FREE' || connector.status === 'AVAILABLE' ? 'LIBRE' : 'OCUPADO',
           time_in_state: timeInState,
-          status_changed_at: connector.status_changed_at
+          status_changed_at: connectorTimestamp
         };
       });
       
@@ -84,7 +106,7 @@ export async function GET(request) {
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    console.error("[v0] Error fetching charger state:", error);
+    console.error("[v0] Error fetching data:", error);
     return Response.json(
       { success: false, error: error.message },
       { status: 500 }
