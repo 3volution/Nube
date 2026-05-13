@@ -180,23 +180,30 @@ export default async function handler(req, res) {
         
         // Guardar estado actual en Supabase con timestamps
         console.log("[v0] Guardando estado para estación:", est.nombre, "ID:", est.id);
-        console.log("[v0] Datos:", JSON.stringify({
-          station_id: String(est.id),
-          station_name: est.nombre,
-          state: actuales,
-          last_check: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }));
         
-        const upsertResponse = await fetch(
+        // Primero, intentar DELETE del registro existente para evitar conflictos
+        const deleteResponse = await fetch(
+          `${SUPABASE_URL}/rest/v1/charger_state?station_id=eq.${est.id}`,
+          {
+            method: "DELETE",
+            headers: {
+              "Authorization": `Bearer ${SUPABASE_KEY}`,
+              "apikey": SUPABASE_KEY
+            }
+          }
+        );
+        
+        console.log("[v0] Delete response status:", deleteResponse.status);
+        
+        // Luego INSERT el nuevo registro
+        const insertResponse = await fetch(
           `${SUPABASE_URL}/rest/v1/charger_state`,
           {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
               "Authorization": `Bearer ${SUPABASE_KEY}`,
-              "apikey": SUPABASE_KEY,
-              "Prefer": "resolution=merge-duplicates"
+              "apikey": SUPABASE_KEY
             },
             body: JSON.stringify({
               station_id: String(est.id),
@@ -208,12 +215,12 @@ export default async function handler(req, res) {
           }
         );
         
-        console.log("[v0] Upsert response status:", upsertResponse.status);
+        console.log("[v0] Insert response status:", insertResponse.status);
         
-        if (!upsertResponse.ok) {
-          const error = await upsertResponse.text();
-          console.error("[v0] Error guardando estado:", error);
-          await guardarLog("ERROR", est.nombre, `Error guardando estado: ${error}`);
+        if (!insertResponse.ok) {
+          const error = await insertResponse.text();
+          console.error("[v0] Error insertando estado:", error);
+          await guardarLog("ERROR", est.nombre, `Error insertando: ${error}`);
         } else {
           console.log("[v0] Estado guardado exitosamente para", est.nombre);
           await guardarLog("SUCCESS", est.nombre, `Consultada exitosamente. ${actuales.length} conectores.`);
