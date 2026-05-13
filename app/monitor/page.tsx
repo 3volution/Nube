@@ -11,6 +11,7 @@ export default function MonitorPage() {
   const [selectedTab, setSelectedTab] = useState('estaciones');
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [error, setError] = useState(null);
+  const [currentTime, setCurrentTime] = useState(new Date());
 
   // Orden personalizado de estaciones
   const STATION_ORDER = {
@@ -68,6 +69,22 @@ export default function MonitorPage() {
       setStations(prev => [...prev]); // Forzar re-render sin cambiar data
     }, 1000);
     return () => clearInterval(timer);
+  }, []);
+
+  // Reloj con segundero activo
+  useEffect(() => {
+    const clockInterval = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    return () => clearInterval(clockInterval);
+  }, []);
+
+  // Auto-recarga cada 60 segundos
+  useEffect(() => {
+    const reloadInterval = setInterval(() => {
+      window.location.reload();
+    }, 60000);
+    return () => clearInterval(reloadInterval);
   }, []);
 
   // Función para calcular tiempo transcurrido (igual que en Scriptable)
@@ -182,7 +199,8 @@ export default function MonitorPage() {
           <>
             {/* Stations Grid - ALWAYS VISIBLE */}
             <div className="mb-8">
-              <div className="flex justify-end mb-4">
+              <div className="flex justify-between items-center mb-4">
+                <p className="text-slate-400 text-sm font-mono">⏰ {currentTime.toLocaleTimeString('es-ES')}</p>
                 <p className="text-slate-400 text-sm">Última actualización: {displayStations.length > 0 ? displayStations[0].lastCheck : new Date().toLocaleString('es-ES')}</p>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -239,26 +257,6 @@ export default function MonitorPage() {
                                   <span className="text-slate-400">Offset esperado:</span> {offsetSeconds}s
                                 </div>
                               </div>
-                              
-                              {/* DEBUG BACKEND */}
-                              {(connector.debug_offset !== undefined || connector.debug_timestamp_calculated) && (
-                                <div className="border-t border-slate-600 pt-1 mt-1">
-                                  <div className="text-yellow-400 font-bold mb-1">Backend Debug:</div>
-                                  <div>
-                                    <span className="text-yellow-500">Offset asignado:</span> {connector.debug_offset}s
-                                  </div>
-                                  <div>
-                                    <span className="text-yellow-500">Timestamp calc:</span> {connector.debug_timestamp_calculated ? connector.debug_timestamp_calculated.split('T')[1] : 'N/A'}
-                                  </div>
-                                  <div className="text-yellow-300 mt-1">
-                                    {connector.debug_offset === offsetSeconds ? (
-                                      <span>✓ Offset OK</span>
-                                    ) : (
-                                      <span>✗ ERROR: {connector.debug_offset} != {offsetSeconds}</span>
-                                    )}
-                                  </div>
-                                </div>
-                              )}
                             </div>
                           </div>
                         );
