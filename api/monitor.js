@@ -241,49 +241,74 @@ export default async function handler(req, res) {
         
         // Guardar estado actual en Supabase con timestamps
         console.log("[v0] Guardando estado para estación:", est.nombre, "ID:", est.id);
+        console.log("[v0] Conectores a guardar:", JSON.stringify(actuales.slice(0, 2).map(c => ({ id: c.id, timestamp: c.status_changed_at }))));
         
-        // Primero, intentar DELETE del registro existente para evitar conflictos
-        const deleteResponse = await fetch(
+        // Usar UPSERT en lugar de DELETE + INSERT para mantener los timestamps
+        const upsertResponse = await fetch(
           `${SUPABASE_URL}/rest/v1/charger_state?station_id=eq.${est.id}`,
           {
-            method: "DELETE",
-            headers: {
-              "Authorization": `Bearer ${SUPABASE_KEY}`,
-              "apikey": SUPABASE_KEY
-            }
-          }
-        );
-        
-        console.log("[v0] Delete response status:", deleteResponse.status);
-        
-        // Luego INSERT el nuevo registro
-        const insertResponse = await fetch(
-          `${SUPABASE_URL}/rest/v1/charger_state`,
-          {
-            method: "POST",
+            method: "PUT",
             headers: {
               "Content-Type": "application/json",
               "Authorization": `Bearer ${SUPABASE_KEY}`,
-              "apikey": SUPABASE_KEY
+              "apikey": SUPABASE_KEY,
+              "Prefer": "return=minimal"
             },
             body: JSON.stringify({
               station_id: String(est.id),
               station_name: est.nombre,
               state: actuales,
-              last_check: new Date().toISOString(),
-              updated_at: new Date().toISOString()
+              last_check: new Date().toISOString()
             })
           }
         );
         
-        console.log("[v0] Insert response status:", insertResponse.status);
+        console.log("[v0] Upsert response status:", upsertResponse.status);
         
-        if (!insertResponse.ok) {
-          const error = await insertResponse.text();
-          console.error("[v0] Error insertando estado:", error);
-          await guardarLog("ERROR", est.nombre, `Error insertando: ${error}`);
+        if (!upsertResponse.ok) {
+          // Si UPDATE falla, hacer DELETE + INSERT
+          console.log("[v0] PUT falló, intentando DELETE + INSERT");
+          const deleteResponse = await fetch(
+            `${SUPABASE_URL}/rest/v1/charger_state?station_id=eq.${est.id}`,
+            {
+              method: "DELETE",
+              headers: {
+                "Authorization": `Bearer ${SUPABASE_KEY}`,
+                "apikey": SUPABASE_KEY
+              }
+            }
+          );
+          
+          const insertResponse = await fetch(
+            `${SUPABASE_URL}/rest/v1/charger_state`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${SUPABASE_KEY}`,
+                "apikey": SUPABASE_KEY
+              },
+              body: JSON.stringify({
+                station_id: String(est.id),
+                station_name: est.nombre,
+                state: actuales,
+                last_check: new Date().toISOString()
+              })
+            }
+          );
+          
+          console.log("[v0] Insert response status:", insertResponse.status);
+          
+          if (!insertResponse.ok) {
+            const error = await insertResponse.text();
+            console.error("[v0] Error insertando estado:", error);
+            await guardarLog("ERROR", est.nombre, `Error insertando: ${error}`);
+          } else {
+            console.log("[v0] Estado guardado exitosamente para", est.nombre);
+            await guardarLog("SUCCESS", est.nombre, `Consultada exitosamente. ${actuales.length} conectores.`);
+          }
         } else {
-          console.log("[v0] Estado guardado exitosamente para", est.nombre);
+          console.log("[v0] Estado actualizado exitosamente para", est.nombre);
           await guardarLog("SUCCESS", est.nombre, `Consultada exitosamente. ${actuales.length} conectores.`);
         }
       } catch (error) {
