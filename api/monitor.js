@@ -267,6 +267,7 @@ export default async function handler(req, res) {
         actuales.forEach((con, index) => {
           const timestamp = new Date(now.getTime() - (index * 1000)); // Cada conector 1 segundo atrás del anterior
           tiemposEscalonados[con.id] = timestamp.toISOString();
+          console.log(`[v0] Estación ${est.nombre}: Conector ${con.id} (index ${index}) → offset ${index}s → ${tiemposEscalonados[con.id]}`);
         });
         
         for (const con of actuales) {
@@ -298,7 +299,7 @@ export default async function handler(req, res) {
           } else {
             // No cambió o es primer registro - usar timestamp escalonado
             con.status_changed_at = tiemposEscalonados[con.id];
-            console.log(`[v0] Conector ${con.id}: timestamp escalonado: ${con.status_changed_at}`);
+            console.log(`[v0] Asignado timestamp escalonado a conector ${con.id}: ${con.status_changed_at}`);
           }
         }
             
