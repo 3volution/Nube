@@ -7,6 +7,7 @@ export default function MonitorPage() {
   const [stations, setStations] = useState([]);
   const [stateChanges, setStateChanges] = useState([]);
   const [logs, setLogs] = useState([]);
+  const [chargeHistory, setChargeHistory] = useState([]); // Historial de cargas completadas
   const [loading, setLoading] = useState(true);
   const [selectedTab, setSelectedTab] = useState('estaciones');
   const [autoRefresh, setAutoRefresh] = useState(true);
@@ -56,6 +57,17 @@ export default function MonitorPage() {
       setLoading(false);
     }
   };
+
+  // Extraer historial de cargas completadas (OCCUPIED -> FREE)
+  useEffect(() => {
+    if (stateChanges.length > 0) {
+      const completedCharges = stateChanges
+        .filter(change => change.new_status === 'FREE' || change.new_status === 'AVAILABLE')
+        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+        .slice(0, 20); // Últimas 20 cargas
+      setChargeHistory(completedCharges);
+    }
+  }, [stateChanges]);
 
   useEffect(() => {
     fetchData();
@@ -237,27 +249,6 @@ export default function MonitorPage() {
                                 </div>
                               </div>
                             </div>
-                            
-                            {/* DEBUG PANEL */}
-                            <div className="bg-slate-800 rounded p-2 text-xs text-slate-300 border border-slate-600 font-mono space-y-1">
-                              <div className="grid grid-cols-2 gap-2">
-                                <div>
-                                  <span className="text-slate-400">Timestamp:</span> {statusChangedDate ? statusChangedDate.toISOString().split('T')[1] : 'N/A'}
-                                </div>
-                                <div>
-                                  <span className="text-slate-400">Índice:</span> {idx}
-                                </div>
-                                <div className="col-span-2">
-                                  <span className="text-slate-400">Timestamp raw:</span> {connector.status_changed_at || 'N/A'}
-                                </div>
-                                <div>
-                                  <span className="text-slate-400">Diff (seg):</span> {diffSeconds !== null ? diffSeconds : 'N/A'}
-                                </div>
-                                <div>
-                                  <span className="text-slate-400">Offset esperado:</span> {offsetSeconds}s
-                                </div>
-                              </div>
-                            </div>
                           </div>
                         );
                       })}
@@ -290,6 +281,52 @@ export default function MonitorPage() {
                     {new Date().toLocaleTimeString('es-ES')}
                   </p>
                 </div>
+              </div>
+            </div>
+
+            {/* LOG DE CARGAS COMPLETADAS */}
+            <div className="mt-8">
+              <h2 className="text-2xl font-bold text-white mb-4">Histórico de Cargas Completadas</h2>
+              <div className="space-y-2 max-h-96 overflow-y-auto">
+                {chargeHistory.length > 0 ? (
+                  chargeHistory.map((charge, idx) => {
+                    const timestamp = new Date(charge.timestamp);
+                    const timeStr = timestamp.toLocaleTimeString('es-ES');
+                    const dateStr = timestamp.toLocaleDateString('es-ES');
+                    const durationMinutes = charge.duration_seconds ? Math.floor(charge.duration_seconds / 60) : 0;
+                    
+                    // Alternar colores
+                    const carColors = ['text-red-500', 'text-orange-500', 'text-yellow-500', 'text-green-500'];
+                    const carColor = carColors[idx % carColors.length];
+                    const bgColor = idx % 2 === 0 ? 'bg-slate-800' : 'bg-slate-750';
+                    
+                    return (
+                      <div key={idx} className={`${bgColor} rounded p-3 flex items-center gap-3 border border-slate-600`}>
+                        <span className={`text-2xl ${carColor}`}>🚗</span>
+                        <div className="flex-1 font-mono text-sm text-slate-300">
+                          <div className="flex gap-4">
+                            <span className="text-slate-400">
+                              {dateStr} {timeStr}
+                            </span>
+                            <span className="text-blue-400">
+                              ID: {charge.connector_id}
+                            </span>
+                            <span className="text-green-400">
+                              {charge.station_name}
+                            </span>
+                            <span className="text-yellow-400">
+                              {durationMinutes}m cargando
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="bg-slate-800 rounded p-4 text-slate-400 text-center">
+                    Sin cargas registradas
+                  </div>
+                )}
               </div>
             </div>
           </>
