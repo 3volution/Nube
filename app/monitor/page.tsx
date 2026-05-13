@@ -186,8 +186,8 @@ export default function MonitorPage() {
                           </div>
                           <div className="flex flex-col gap-2">
                             <div className="flex items-baseline gap-3">
-                              <span className="text-3xl font-bold">{connector.status_display}</span>
-                              <span className="text-2xl font-semibold">{connector.time_in_state}</span>
+                              <span className="text-2xl sm:text-3xl font-bold">{connector.status_display}</span>
+                              <span className="text-lg sm:text-2xl font-semibold">{connector.time_in_state}</span>
                             </div>
                           </div>
                         </div>
