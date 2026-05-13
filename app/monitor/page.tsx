@@ -13,8 +13,8 @@ export default function MonitorPage() {
   const fetchData = async () => {
     try {
       const [stationsRes, logsRes] = await Promise.all([
-        fetch('/app/api/stations'),
-        fetch(`/app/api/logs?limit=100`)
+        fetch('/api/stations'),
+        fetch(`/api/logs?limit=100`)
       ]);
 
       if (stationsRes.ok) {
