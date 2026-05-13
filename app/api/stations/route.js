@@ -1,6 +1,8 @@
 export async function GET(request) {
   const ELECTROMAPS_USER = process.env.ELECTROMAPS_USER;
   const ELECTROMAPS_PASS = process.env.ELECTROMAPS_PASS;
+  const SUPABASE_URL = process.env.SUPABASE_URL;
+  const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY;
 
   if (!ELECTROMAPS_USER || !ELECTROMAPS_PASS) {
     return Response.json(
@@ -90,8 +92,35 @@ export async function GET(request) {
             status: connector.status,
             status_display: connector.status === 'FREE' || connector.status === 'AVAILABLE' ? 'LIBRE' : 'OCUPADO',
             time_in_state: 'Tiempo real',
-            status_changed_at: new Date().toISOString()
+            status_updated_at: connector.status_updated_at,
+            status_changed_at: connector.status_updated_at
           }));
+          
+          // GUARDAR EN SUPABASE para auditoría e histórico
+          if (SUPABASE_URL && SUPABASE_KEY) {
+            try {
+              await fetch(
+                `${SUPABASE_URL}/rest/v1/charger_state?station_id=eq.${est.id}`,
+                {
+                  method: "PUT",
+                  headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${SUPABASE_KEY}`,
+                    "apikey": SUPABASE_KEY,
+                    "Prefer": "return=minimal"
+                  },
+                  body: JSON.stringify({
+                    station_id: String(est.id),
+                    station_name: est.nombre,
+                    state: formattedConnectors,
+                    last_check: new Date().toISOString()
+                  })
+                }
+              ).catch(err => console.error(`[v0] Error guardando en Supabase para ${est.nombre}:`, err.message));
+            } catch (err) {
+              console.error(`[v0] Error saving to Supabase:`, err.message);
+            }
+          }
           
           return {
             id: est.id,
