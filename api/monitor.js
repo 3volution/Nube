@@ -185,15 +185,16 @@ export default async function handler(req, res) {
         for (const con of actuales) {
           const prev = anteriores.find(c => c.id === con.id);
           
-          // Si no existía antes o cambió de estado, actualizar timestamp
-          if (!prev || prev.status !== con.status) {
+          // Inicializar status_changed_at si no existe
+          if (!con.status_changed_at) {
             con.status_changed_at = new Date().toISOString();
-          } else if (prev.status_changed_at) {
-            // Mantener el timestamp anterior si el estado no cambió
-            con.status_changed_at = prev.status_changed_at;
           }
           
+          // Si cambió de estado, actualizar timestamp
           if (prev && prev.status !== con.status) {
+            console.log(`[v0] Estado cambió para conector ${con.id}: ${prev.status} → ${con.status}`);
+            con.status_changed_at = new Date().toISOString();
+            
             // Calcular tiempo en estado anterior
             const prevTimestamp = new Date(prev.status_changed_at);
             const ahora = new Date();
@@ -231,6 +232,10 @@ export default async function handler(req, res) {
               await guardarLog("CAMBIO", est.nombre, `Conector ${nombre} cambió de ${prev.status} a ${con.status}`);
               notificacionesEnviadas++;
             }
+          } else if (prev && prev.status_changed_at) {
+            // Mantener el timestamp anterior si el estado NO cambió
+            con.status_changed_at = prev.status_changed_at;
+            console.log(`[v0] Estado sin cambios para conector ${con.id}, manteniendo timestamp: ${con.status_changed_at}`);
           }
         }
         
