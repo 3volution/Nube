@@ -261,21 +261,22 @@ export default async function handler(req, res) {
 
         // Crear timestamps escalonados POR CADA ESTACIÓN - SECUENCIAL
         const now = new Date();
-        const tiemposEscalonados = {};
         
-        // Asignar timestamp único a cada conector con offset secuencial (0, 1, 2, 3, ...)
-        actuales.forEach((con, index) => {
-          const timestamp = new Date(now.getTime() - (index * 1000)); // Cada conector 1 segundo atrás del anterior
-          tiemposEscalonados[con.id] = timestamp.toISOString();
-          con._debug_offset = index; // AGREGAR CAMPO DEBUG
-          con._debug_timestamp_calculated = timestamp.toISOString(); // AGREGAR TIMESTAMP DEBUG
-        });
-        
-        for (const con of actuales) {
+        // Procesar cada conector con su offset secuencial
+        for (let index = 0; index < actuales.length; index++) {
+          const con = actuales[index];
           const prev = anteriores.find(c => c.id === con.id);
           
+          // Calcular timestamp escalonado (0, 1, 2, 3... segundos atrás)
+          const offsetTimestamp = new Date(now.getTime() - (index * 1000));
+          const offsetTimestampISO = offsetTimestamp.toISOString();
+          
+          // Campos debug
+          con._debug_offset = index;
+          con._debug_timestamp_calculated = offsetTimestampISO;
+          
           if (prev && prev.status !== con.status) {
-            // Estado CAMBIÓ - crear timestamp nuevo
+            // Estado CAMBIÓ - crear timestamp nuevo (ahora)
             con.status_changed_at = new Date().toISOString();
             
             // Registrar cambio de estado
@@ -298,7 +299,7 @@ export default async function handler(req, res) {
             }
           } else {
             // Estado NO CAMBIÓ o es primer registro - usar timestamp escalonado
-            con.status_changed_at = tiemposEscalonados[con.id];
+            con.status_changed_at = offsetTimestampISO;
           }
         }
         
