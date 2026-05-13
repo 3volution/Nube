@@ -185,57 +185,63 @@ export default async function handler(req, res) {
         for (const con of actuales) {
           const prev = anteriores.find(c => c.id === con.id);
           
-          // Inicializar status_changed_at si no existe
-          if (!con.status_changed_at) {
-            con.status_changed_at = new Date().toISOString();
-          }
-          
-          // Si cambió de estado, actualizar timestamp
-          if (prev && prev.status !== con.status) {
-            console.log(`[v0] Estado cambió para conector ${con.id}: ${prev.status} → ${con.status}`);
-            con.status_changed_at = new Date().toISOString();
-            
-            // Calcular tiempo en estado anterior
-            const prevTimestamp = new Date(prev.status_changed_at);
-            const ahora = new Date();
-            const tiempoEnSegundos = Math.floor((ahora - prevTimestamp) / 1000);
-            
-            // Registrar CUALQUIER cambio de estado
-            await guardarCambioEstado(
-              con.visualRef || con.id,
-              est.id,
-              est.nombre,
-              prev.status,
-              con.status,
-              tiempoEnSegundos
-            );
-            
-            const nombre = con.visualRef || con.id;
-            
-            // Enviar notificación SOLO si cambió a LIBRE
-            const estabaOcupado = (prev.status !== "FREE" && prev.status !== "AVAILABLE");
-            const ahoraLibre = (con.status === "FREE" || con.status === "AVAILABLE");
-            if (estabaOcupado && ahoraLibre) {
-              const hora = new Date().toLocaleTimeString('es-ES');
-              const mensaje = `🔔 *${nombre}* se ha liberado en *${est.nombre}*\n⏰ ${hora}\n📍 ${est.direccion}\nEstado: ${prev.status} → ${con.status}`;
+          // Si existe un registro anterior, mantener o actualizar su timestamp
+          if (prev && prev.status_changed_at) {
+            // Si el estado es igual, mantener el timestamp anterior
+            if (prev.status === con.status) {
+              con.status_changed_at = prev.status_changed_at;
+              console.log(`[v0] Estado sin cambios para conector ${con.id}, manteniendo timestamp: ${con.status_changed_at}`);
+            } else {
+              // Si el estado cambió, crear nuevo timestamp
+              console.log(`[v0] Estado cambió para conector ${con.id}: ${prev.status} → ${con.status}`);
+              con.status_changed_at = new Date().toISOString();
               
-              await enviarTelegram(mensaje);
+              // Calcular tiempo en estado anterior
+              const prevTimestamp = new Date(prev.status_changed_at);
+              const ahora = new Date();
+              const tiempoEnSegundos = Math.floor((ahora - prevTimestamp) / 1000);
               
-              cambiosDetectados.push({
-                estacion: est.nombre,
-                conector: nombre,
-                estadoAnterior: prev.status,
-                estadoNuevo: con.status,
-                timestamp: new Date().toISOString()
-              });
+              // Registrar CUALQUIER cambio de estado
+              await guardarCambioEstado(
+                con.visualRef || con.id,
+                est.id,
+                est.nombre,
+                prev.status,
+                con.status,
+                tiempoEnSegundos
+              );
               
-              await guardarLog("CAMBIO", est.nombre, `Conector ${nombre} cambió de ${prev.status} a ${con.status}`);
-              notificacionesEnviadas++;
+              const nombre = con.visualRef || con.id;
+              
+              // Enviar notificación SOLO si cambió a LIBRE
+              const estabaOcupado = (prev.status !== "FREE" && prev.status !== "AVAILABLE");
+              const ahoraLibre = (con.status === "FREE" || con.status === "AVAILABLE");
+              if (estabaOcupado && ahoraLibre) {
+                const hora = new Date().toLocaleTimeString('es-ES');
+                const mensaje = `🔔 *${nombre}* se ha liberado en *${est.nombre}*\n⏰ ${hora}\n📍 ${est.direccion}\nEstado: ${prev.status} → ${con.status}`;
+                
+                await enviarTelegram(mensaje);
+                
+                cambiosDetectados.push({
+                  estacion: est.nombre,
+                  conector: nombre,
+                  estadoAnterior: prev.status,
+                  estadoNuevo: con.status,
+                  timestamp: new Date().toISOString()
+                });
+                
+                await guardarLog("CAMBIO", est.nombre, `Conector ${nombre} cambió de ${prev.status} a ${con.status}`);
+                notificacionesEnviadas++;
+              }
             }
-          } else if (prev && prev.status_changed_at) {
-            // Mantener el timestamp anterior si el estado NO cambió
-            con.status_changed_at = prev.status_changed_at;
-            console.log(`[v0] Estado sin cambios para conector ${con.id}, manteniendo timestamp: ${con.status_changed_at}`);
+          } else {
+            // Primera vez que se ve este conector, crear timestamp único basado en su ID
+            // Usar un hash simple del ID para distribuir timestamps en el tiempo
+            const idHash = con.id.toString().charCodeAt(con.id.length - 1) % 60;
+            const timestampOffset = new Date();
+            timestampOffset.setSeconds(timestampOffset.getSeconds() - idHash);
+            con.status_changed_at = timestampOffset.toISOString();
+            console.log(`[v0] Primer registro para conector ${con.id}, asignando timestamp inicial: ${con.status_changed_at}`);
           }
         }
         
