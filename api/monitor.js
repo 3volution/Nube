@@ -236,12 +236,19 @@ export default async function handler(req, res) {
             }
           } else {
             // Primera vez que se ve este conector, crear timestamp único basado en su ID
-            // Usar un hash simple del ID para distribuir timestamps en el tiempo
-            const idHash = con.id.toString().charCodeAt(con.id.length - 1) % 60;
+            // Usar un hash robusto del ID completo para distribuir timestamps
+            let hash = 0;
+            const idStr = con.id.toString();
+            for (let i = 0; i < idStr.length; i++) {
+              const char = idStr.charCodeAt(i);
+              hash = ((hash << 5) - hash) + char;
+              hash = hash & hash; // Convertir a 32-bit integer
+            }
+            const idHash = Math.abs(hash) % 60;
             const timestampOffset = new Date();
             timestampOffset.setSeconds(timestampOffset.getSeconds() - idHash);
             con.status_changed_at = timestampOffset.toISOString();
-            console.log(`[v0] Primer registro para conector ${con.id}, asignando timestamp inicial: ${con.status_changed_at}`);
+            console.log(`[v0] Primer registro para conector ${con.id}, hash=${idHash}, timestamp: ${con.status_changed_at}`);
           }
         }
         
