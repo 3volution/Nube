@@ -8,6 +8,8 @@ export default function MonitorPage() {
   const [stateChanges, setStateChanges] = useState([]);
   const [logs, setLogs] = useState([]);
   const [chargeHistory, setChargeHistory] = useState([]); // Historial de cargas completadas
+  const [dailyChargesPerStation, setDailyChargesPerStation] = useState({}); // Cargas por estación hoy
+  const [totalDailyCharges, setTotalDailyCharges] = useState(0); // Total cargas hoy
   const [loading, setLoading] = useState(true);
   const [selectedTab, setSelectedTab] = useState('estaciones');
   const [autoRefresh, setAutoRefresh] = useState(true);
@@ -66,6 +68,26 @@ export default function MonitorPage() {
         .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
         .slice(0, 20); // Últimas 20 cargas
       setChargeHistory(completedCharges);
+      
+      // Calcular cargas del día actual (desde las 00:00)
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const chargesPerStation = {};
+      let totalCharges = 0;
+      
+      stateChanges.forEach(change => {
+        const changeTime = new Date(change.timestamp);
+        // Solo contar si es del día actual
+        if (changeTime >= today && (change.new_status === 'FREE' || change.new_status === 'AVAILABLE')) {
+          const stationName = change.station_name;
+          chargesPerStation[stationName] = (chargesPerStation[stationName] || 0) + 1;
+          totalCharges++;
+        }
+      });
+      
+      setDailyChargesPerStation(chargesPerStation);
+      setTotalDailyCharges(totalCharges);
     }
   }, [stateChanges]);
 
@@ -192,6 +214,12 @@ export default function MonitorPage() {
         <div className="mb-8">
           <h1 className="text-4xl font-bold text-white mb-2">GuardianCharger Mérida <span className="text-lg text-slate-400">{APP_VERSION}</span></h1>
           <p className="text-slate-300">Sistema de monitoreo de cargadores eléctricos de vehículos en tiempo real</p>
+          
+          {/* Daily Charge Counter - Total */}
+          <div className="mt-4 flex items-center gap-2 text-lg">
+            <span className="text-2xl">🔌🚗</span>
+            <span className="text-green-400 font-bold">Hoy: {totalDailyCharges} cargas</span>
+          </div>
         </div>
 
         {/* Error Alert */}
@@ -224,6 +252,12 @@ export default function MonitorPage() {
                     <div className="flex justify-between items-start mb-4">
                       <div>
                         <h3 className="text-white font-bold text-2xl">{station.name}</h3>
+                      </div>
+                      <div className="text-right">
+                        <div className="flex items-center gap-1 text-yellow-400 font-bold">
+                          <span className="text-lg">🔌🚗</span>
+                          <span>{dailyChargesPerStation[station.name] || 0}</span>
+                        </div>
                       </div>
                     </div>
 
