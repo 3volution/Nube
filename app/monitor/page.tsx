@@ -97,20 +97,36 @@ export default function MonitorPage() {
     return '🔴';
   };
 
-  // Agrupar estaciones de Calle Almendralejo
+  // Agrupar estaciones de Calle Almendralejo con IDs específicas
   const displayStations = stations.reduce((acc, station) => {
     if (station.id === 828534) {
-      // Encontrar ambas estaciones de Calle Almendralejo
+      // Encontrar ambas estaciones de Calle Almendralejo (828534 y 828535)
       const almendralejo1 = station;
       const almendralejo2 = stations.find(s => s.id === 828535);
-      if (almendralejo2) {
-        // Combinar conectores de ambas
+      
+      // Conectores que pertenecen a Calle Almendralejo (4 IDs específicas)
+      const almendralejoCombined = [];
+      if (almendralejo1) almendralejoCombined.push(...almendralejo1.connectors);
+      if (almendralejo2) almendralejoCombined.push(...almendralejo2.connectors);
+      
+      // Buscar otros conectores de Calle Almendralejo por ID
+      const otherStationsConnectors = stations
+        .filter(s => s.id !== 828534 && s.id !== 828535)
+        .flatMap(s => 
+          s.connectors.filter(c => 
+            ['4543398', '4543399', '4543421', '4543422'].includes(String(c.id))
+          )
+        );
+      
+      almendralejoCombined.push(...otherStationsConnectors);
+      
+      if (almendralejoCombined.length > 0) {
         acc.push({
           ...almendralejo1,
           name: 'Calle Almendralejo',
-          connectors: [...almendralejo1.connectors, ...almendralejo2.connectors],
-          conectoresLibres: almendralejo1.conectoresLibres + almendralejo2.conectoresLibres,
-          conectoresOcupados: almendralejo1.conectoresOcupados + almendralejo2.conectoresOcupados
+          connectors: almendralejoCombined,
+          conectoresLibres: almendralejoCombined.filter(c => c.status === 'FREE' || c.status === 'AVAILABLE').length,
+          conectoresOcupados: almendralejoCombined.filter(c => c.status !== 'FREE' && c.status !== 'AVAILABLE').length
         });
       }
     } else if (station.id !== 828535) {
@@ -204,18 +220,20 @@ export default function MonitorPage() {
                         </div>
                       </div>
 
-                      <div className="space-y-3 max-h-48 overflow-y-auto">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-2 lg:grid-cols-3 gap-2 max-h-96 overflow-y-auto pr-2">
                         {station.connectors.map((connector, idx) => (
                           <div
                             key={idx}
-                            className={`p-4 rounded-lg border-2 ${getStatusColor(connector.status)}`}
+                            className={`p-3 rounded-lg border-2 flex flex-col justify-between h-full ${getStatusColor(connector.status)}`}
                           >
-                            <div className="text-xs text-opacity-75 mb-2">
+                            <div className="text-xs opacity-75 mb-1 truncate">
                               ID: {connector.id}
                             </div>
-                            <div className="flex flex-col">
-                              <span className="text-2xl font-bold mb-1">{connector.status_display}</span>
-                              <span className="text-xl font-semibold">{connector.time_in_state}</span>
+                            <div className="flex flex-col gap-1">
+                              <div className="flex items-center justify-between gap-2 flex-wrap">
+                                <span className="text-lg sm:text-xl font-bold whitespace-nowrap">{connector.status_display}</span>
+                              </div>
+                              <span className="text-sm sm:text-base font-semibold leading-tight break-words">{connector.time_in_state}</span>
                             </div>
                           </div>
                         ))}
