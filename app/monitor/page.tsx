@@ -197,22 +197,51 @@ export default function MonitorPage() {
                     </div>
 
                     <div className="grid grid-cols-1 gap-3 max-h-96 overflow-y-auto pr-2">
-                      {station.connectors.map((connector, idx) => (
-                        <div
-                          key={idx}
-                          className={`p-4 rounded-lg border-2 flex flex-col justify-center h-24 ${getStatusColor(connector.status)}`}
-                        >
-                          <div className="text-xs opacity-75 mb-2">
-                            ID: {connector.id}
-                          </div>
-                          <div className="flex flex-col gap-2">
-                            <div className="flex items-baseline gap-3">
-                              <span className="text-2xl sm:text-3xl font-bold">{connector.status_display}</span>
-                              <span className="text-lg sm:text-2xl font-semibold">{formatTime(connector.status_changed_at)}</span>
+                      {station.connectors.map((connector, idx) => {
+                        const statusChangedDate = connector.status_changed_at ? new Date(connector.status_changed_at) : null;
+                        const now = new Date();
+                        const diffSeconds = statusChangedDate ? Math.floor((now.getTime() - statusChangedDate.getTime()) / 1000) : null;
+                        const offsetSeconds = idx; // El offset es el índice en el array
+                        
+                        return (
+                          <div key={idx} className="space-y-2">
+                            <div
+                              className={`p-4 rounded-lg border-2 flex flex-col justify-center h-24 ${getStatusColor(connector.status)}`}
+                            >
+                              <div className="text-xs opacity-75 mb-2">
+                                ID: {connector.id}
+                              </div>
+                              <div className="flex flex-col gap-2">
+                                <div className="flex items-baseline gap-3">
+                                  <span className="text-2xl sm:text-3xl font-bold">{connector.status_display}</span>
+                                  <span className="text-lg sm:text-2xl font-semibold">{formatTime(connector.status_changed_at)}</span>
+                                </div>
+                              </div>
+                            </div>
+                            
+                            {/* DEBUG PANEL */}
+                            <div className="bg-slate-800 rounded p-2 text-xs text-slate-300 border border-slate-600 font-mono">
+                              <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                  <span className="text-slate-400">Timestamp:</span> {statusChangedDate ? statusChangedDate.toISOString().split('T')[1] : 'N/A'}
+                                </div>
+                                <div>
+                                  <span className="text-slate-400">Índice:</span> {idx}
+                                </div>
+                                <div className="col-span-2">
+                                  <span className="text-slate-400">Timestamp raw:</span> {connector.status_changed_at || 'N/A'}
+                                </div>
+                                <div>
+                                  <span className="text-slate-400">Diff (seg):</span> {diffSeconds !== null ? diffSeconds : 'N/A'}
+                                </div>
+                                <div>
+                                  <span className="text-slate-400">Offset esperado:</span> {offsetSeconds}s
+                                </div>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 ))}
