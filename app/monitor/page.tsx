@@ -133,8 +133,6 @@ export default function MonitorPage() {
         }
       });
       
-      console.log('[v0] chargesPerStation:', chargesPerStation);
-      console.log('[v0] totalCharges:', totalCharges);
       setDailyChargesPerStation(chargesPerStation);
       setTotalDailyCharges(totalCharges);
       
@@ -355,9 +353,7 @@ export default function MonitorPage() {
                 <p className="text-slate-400 text-sm">Última actualización: {displayStations.length > 0 ? displayStations[0].lastCheck : new Date().toLocaleString('es-ES')}</p>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {displayStations.map(station => {
-                  console.log('[v0] Station name:', station.name, 'Count:', dailyChargesPerStation[station.name]);
-                  return (
+                {displayStations.map(station => (
                   <div
                     key={station.id}
                     className="bg-slate-700 rounded-lg p-4 border border-slate-600 hover:border-slate-500 transition"
@@ -407,7 +403,7 @@ export default function MonitorPage() {
                       })}
                     </div>
                   </div>
-                )})}
+                ))}
               </div>
             </div>
 
