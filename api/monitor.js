@@ -192,6 +192,7 @@ async function guardarCambioEstado(connectorId, stationId, stationName, estadoAn
         "apikey": SUPABASE_KEY
       },
       body: JSON.stringify({
+        timestamp: ahora.toISOString(),
         fecha,
         dia,
         hora,
