@@ -62,6 +62,13 @@ export async function POST(request) {
         }
       });
 
+      // Obtener estado anterior
+      const prevRes = await fetch(`${SUPABASE_URL}/rest/v1/test_connectors?connector_id=eq.${connectorId}`, {
+        headers: { 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY }
+      });
+      const prevData = await prevRes.json();
+      const estadoAnterior = prevData.length > 0 ? prevData[0].status : 'FREE';
+
       await fetch(`${SUPABASE_URL}/rest/v1/test_connectors`, {
         method: 'POST',
         headers: {
@@ -76,7 +83,30 @@ export async function POST(request) {
         })
       });
 
-      await enviarRespuesta(`Cargador ${connectorId} ahora esta OCUPADO`);
+      // Registrar cambio de estado en connector_state_changes
+      const ahora = new Date();
+      await fetch(`${SUPABASE_URL}/rest/v1/connector_state_changes`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+          'apikey': SUPABASE_KEY
+        },
+        body: JSON.stringify({
+          timestamp: ahora.toISOString(),
+          fecha: ahora.toISOString().split('T')[0],
+          dia: ['Domingo','Lunes','Martes','Miercoles','Jueves','Viernes','Sabado'][ahora.getDay()],
+          hora: ahora.toTimeString().slice(0, 8),
+          connector_id: connectorId,
+          station_id: 'TEST',
+          station_name: 'Cargador Ficticio',
+          estado_anterior: estadoAnterior,
+          estado_nuevo: 'OCCUPIED',
+          tiempo_en_estado_anterior_segundos: 0
+        })
+      });
+
+      await enviarRespuesta(`Cargador ${connectorId} ahora esta OCUPADO (registrado en historial)`);
 
     } else if (text.startsWith('/liberar')) {
       const partes = text.split(' ');
@@ -86,6 +116,13 @@ export async function POST(request) {
         await enviarRespuesta(`Uso: /liberar [ID]\nIDs validos: ${CARGADORES_FICTICIOS.join(', ')}`);
         return Response.json({ ok: true });
       }
+
+      // Obtener estado anterior
+      const prevResLib = await fetch(`${SUPABASE_URL}/rest/v1/test_connectors?connector_id=eq.${connectorId}`, {
+        headers: { 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY }
+      });
+      const prevDataLib = await prevResLib.json();
+      const estadoAnteriorLib = prevDataLib.length > 0 ? prevDataLib[0].status : 'OCCUPIED';
 
       // Guardar estado en Supabase
       await fetch(`${SUPABASE_URL}/rest/v1/test_connectors?connector_id=eq.${connectorId}`, {
@@ -110,7 +147,30 @@ export async function POST(request) {
         })
       });
 
-      await enviarRespuesta(`Cargador ${connectorId} ahora esta LIBRE`);
+      // Registrar cambio de estado en connector_state_changes
+      const ahoraLib = new Date();
+      await fetch(`${SUPABASE_URL}/rest/v1/connector_state_changes`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+          'apikey': SUPABASE_KEY
+        },
+        body: JSON.stringify({
+          timestamp: ahoraLib.toISOString(),
+          fecha: ahoraLib.toISOString().split('T')[0],
+          dia: ['Domingo','Lunes','Martes','Miercoles','Jueves','Viernes','Sabado'][ahoraLib.getDay()],
+          hora: ahoraLib.toTimeString().slice(0, 8),
+          connector_id: connectorId,
+          station_id: 'TEST',
+          station_name: 'Cargador Ficticio',
+          estado_anterior: estadoAnteriorLib,
+          estado_nuevo: 'FREE',
+          tiempo_en_estado_anterior_segundos: 0
+        })
+      });
+
+      await enviarRespuesta(`Cargador ${connectorId} ahora esta LIBRE (registrado en historial)`);
 
     } else if (text === '/estado') {
       // Obtener estado actual de cargadores ficticios
