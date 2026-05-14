@@ -65,48 +65,27 @@ export default function MonitorPage() {
   // Extraer historial de cargas con estado (en progreso / completada)
   useEffect(() => {
     if (stateChanges.length > 0) {
-      // Agrupar cambios por conector para emparejar inicio/fin de carga
-      const changesByConnector = {};
-      stateChanges.forEach(change => {
-        const key = change.connector_id;
-        if (!changesByConnector[key]) changesByConnector[key] = [];
-        changesByConnector[key].push(change);
-      });
-      
-      // Crear historial con estado de cada carga
-      const chargesWithStatus = [];
-      
-      Object.entries(changesByConnector).forEach(([connectorId, changes]) => {
-        const sorted = changes.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+      // Procesar cada cambio de estado
+      const chargesWithStatus = stateChanges.map(change => {
+        // Determinar si es carga completada (cambio a FREE) o en progreso (cambio a OCCUPIED)
+        const isCompleted = change.new_status === 'FREE' || change.new_status === 'AVAILABLE';
         
-        for (let i = 0; i < sorted.length; i++) {
-          const change = sorted[i];
-          // Solo nos interesan cuando empieza a cargar (pasa a OCUPADO)
-          if (change.new_status === 'FREE' || change.new_status === 'AVAILABLE') continue;
-          
-          // Buscar si hay un cambio posterior a FREE (fin de carga)
-          const endChange = sorted.slice(i + 1).find(c => c.new_status === 'FREE' || c.new_status === 'AVAILABLE');
-          
+        let durationMinutes = 0;
+        if (isCompleted) {
+          // Carga completada - usar duration_seconds del registro
+          durationMinutes = change.duration_seconds ? Math.floor(change.duration_seconds / 60) : 0;
+        } else {
+          // Carga en progreso - calcular tiempo desde inicio hasta ahora
           const startTime = new Date(change.timestamp);
-          let durationMinutes = 0;
-          let isCompleted = false;
-          
-          if (endChange) {
-            const endTime = new Date(endChange.timestamp);
-            durationMinutes = Math.floor((endTime - startTime) / 60000);
-            isCompleted = true;
-          } else {
-            // Carga en progreso - calcular tiempo desde inicio hasta ahora
-            durationMinutes = Math.floor((new Date() - startTime) / 60000);
-          }
-          
-          chargesWithStatus.push({
-            ...change,
-            isCompleted,
-            durationMinutes,
-            isOverLimit: isCompleted && durationMinutes > 120 // Mas de 2 horas
-          });
+          durationMinutes = Math.floor((new Date() - startTime) / 60000);
         }
+        
+        return {
+          ...change,
+          isCompleted,
+          durationMinutes,
+          isOverLimit: isCompleted && durationMinutes > 120 // Mas de 2 horas
+        };
       });
       
       // Ordenar por fecha descendente y limitar
@@ -120,6 +99,16 @@ export default function MonitorPage() {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       
+      // Mapeo de station_id a nombre de estacion (para hacer match robusto)
+      const STATION_ID_TO_NAME = {
+        '828537': 'Estacion Bus',
+        '828524': 'Avda. Roma',
+        '828534': 'Calle Almendralejo (1)',
+        '828535': 'Calle Almendralejo (2)',
+        '828523': 'Plaza Xirgu',
+        '828538': 'Avda. del Prado'
+      };
+      
       const chargesPerStation = {};
       let totalCharges = 0;
       
@@ -127,7 +116,8 @@ export default function MonitorPage() {
         const changeTime = new Date(change.timestamp);
         // Solo contar si es del dia actual Y si pasa a OCUPADO (coche empieza a cargar)
         if (changeTime >= today && change.new_status !== 'FREE' && change.new_status !== 'AVAILABLE') {
-          const stationName = change.station_name;
+          // Usar station_id para hacer match, o station_name como fallback
+          const stationName = STATION_ID_TO_NAME[change.station_id] || change.station_name;
           chargesPerStation[stationName] = (chargesPerStation[stationName] || 0) + 1;
           totalCharges++;
         }
