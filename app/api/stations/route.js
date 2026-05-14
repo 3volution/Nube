@@ -114,26 +114,34 @@ export async function GET(request) {
         try {
           const conectoresRaw = await consultarEstado(est.id, token);
           
-          const formattedConnectors = conectoresRaw.map(connector => {
-            // Verificar si hay override de prueba para este cargador
-            const visualRef = connector.visualRef || String(connector.id);
-            const datosPrueba = cargadoresPrueba[visualRef] || null;
-            
-            // Usar datos de prueba si existen, sino usar datos de Electromaps
-            const status = datosPrueba ? datosPrueba.status : connector.status;
-            const statusUpdatedAt = datosPrueba ? datosPrueba.status_updated_at : connector.status_updated_at;
-            
-            return {
-              id: connector.id,
-              visualRef: visualRef,
-              status: status,
-              status_display: status === 'FREE' || status === 'AVAILABLE' ? 'LIBRE' : 'OCUPADO',
-              time_in_state: 'Tiempo real',
-              status_updated_at: statusUpdatedAt,
-              status_changed_at: statusUpdatedAt,
-              es_test: !!datosPrueba
-            };
-          });
+          // IDs ficticios a excluir
+          const EXCLUDED_CONNECTORS = ['003657', '003658'];
+          
+          const formattedConnectors = conectoresRaw
+            .filter(connector => {
+              const visualRef = connector.visualRef || String(connector.id);
+              return !EXCLUDED_CONNECTORS.includes(visualRef);
+            })
+            .map(connector => {
+              // Verificar si hay override de prueba para este cargador
+              const visualRef = connector.visualRef || String(connector.id);
+              const datosPrueba = cargadoresPrueba[visualRef] || null;
+              
+              // Usar datos de prueba si existen, sino usar datos de Electromaps
+              const status = datosPrueba ? datosPrueba.status : connector.status;
+              const statusUpdatedAt = datosPrueba ? datosPrueba.status_updated_at : connector.status_updated_at;
+              
+              return {
+                id: connector.id,
+                visualRef: visualRef,
+                status: status,
+                status_display: status === 'FREE' || status === 'AVAILABLE' ? 'LIBRE' : 'OCUPADO',
+                time_in_state: 'Tiempo real',
+                status_updated_at: statusUpdatedAt,
+                status_changed_at: statusUpdatedAt,
+                es_test: !!datosPrueba
+              };
+            });
           
           // GUARDAR EN SUPABASE para auditoría e histórico
           if (SUPABASE_URL && SUPABASE_KEY) {
