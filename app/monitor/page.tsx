@@ -68,6 +68,8 @@ export default function MonitorPage() {
     console.log('[v0] stateChanges length:', stateChanges.length);
     if (stateChanges.length > 0) {
       console.log('[v0] First change:', stateChanges[0]);
+      console.log('[v0] First change new_status:', stateChanges[0].new_status);
+      console.log('[v0] All new_status values:', stateChanges.map(c => c.new_status));
       // Historial: cuando un coche EMPIEZA a cargar (LIBRE -> OCUPADO)
       const startedCharges = stateChanges
         .filter(change => change.new_status !== 'FREE' && change.new_status !== 'AVAILABLE')
