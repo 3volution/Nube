@@ -345,7 +345,7 @@ export default function MonitorPage() {
                               className={`p-4 rounded-lg border-2 flex flex-col justify-center h-24 ${getStatusColor(connector.status)}`}
                             >
                               <div className="text-xs opacity-75 mb-2">
-                                ID: {connector.id}
+                                ID: {connector.visualRef || connector.id}
                               </div>
                               <div className="flex flex-col gap-2">
                                 <div className="flex items-baseline gap-3">
