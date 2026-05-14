@@ -99,6 +99,16 @@ export default function MonitorPage() {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       
+      // Mapeo de station_id a nombre de estacion (para hacer match robusto)
+      const STATION_ID_TO_NAME = {
+        '828537': 'Estacion Bus',
+        '828524': 'Avda. Roma',
+        '828534': 'Calle Almendralejo (1)',
+        '828535': 'Calle Almendralejo (2)',
+        '828523': 'Plaza Xirgu',
+        '828538': 'Avda. del Prado'
+      };
+      
       const chargesPerStation = {};
       let totalCharges = 0;
       
@@ -106,7 +116,8 @@ export default function MonitorPage() {
         const changeTime = new Date(change.timestamp);
         // Solo contar si es del dia actual Y si pasa a OCUPADO (coche empieza a cargar)
         if (changeTime >= today && change.new_status !== 'FREE' && change.new_status !== 'AVAILABLE') {
-          const stationName = change.station_name;
+          // Usar station_id para hacer match, o station_name como fallback
+          const stationName = STATION_ID_TO_NAME[change.station_id] || change.station_name;
           chargesPerStation[stationName] = (chargesPerStation[stationName] || 0) + 1;
           totalCharges++;
         }
