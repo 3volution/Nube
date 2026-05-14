@@ -62,15 +62,59 @@ export default function MonitorPage() {
     }
   };
 
-  // Extraer historial de cargas (cambios a OCUPADO = coche empieza a cargar)
+  // Extraer historial de cargas con estado (en progreso / completada)
   useEffect(() => {
     if (stateChanges.length > 0) {
-      // Historial: cuando un coche EMPIEZA a cargar (LIBRE -> OCUPADO)
-      const startedCharges = stateChanges
-        .filter(change => change.new_status !== 'FREE' && change.new_status !== 'AVAILABLE')
+      // Agrupar cambios por conector para emparejar inicio/fin de carga
+      const changesByConnector = {};
+      stateChanges.forEach(change => {
+        const key = change.connector_id;
+        if (!changesByConnector[key]) changesByConnector[key] = [];
+        changesByConnector[key].push(change);
+      });
+      
+      // Crear historial con estado de cada carga
+      const chargesWithStatus = [];
+      
+      Object.entries(changesByConnector).forEach(([connectorId, changes]) => {
+        const sorted = changes.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+        
+        for (let i = 0; i < sorted.length; i++) {
+          const change = sorted[i];
+          // Solo nos interesan cuando empieza a cargar (pasa a OCUPADO)
+          if (change.new_status === 'FREE' || change.new_status === 'AVAILABLE') continue;
+          
+          // Buscar si hay un cambio posterior a FREE (fin de carga)
+          const endChange = sorted.slice(i + 1).find(c => c.new_status === 'FREE' || c.new_status === 'AVAILABLE');
+          
+          const startTime = new Date(change.timestamp);
+          let durationMinutes = 0;
+          let isCompleted = false;
+          
+          if (endChange) {
+            const endTime = new Date(endChange.timestamp);
+            durationMinutes = Math.floor((endTime - startTime) / 60000);
+            isCompleted = true;
+          } else {
+            // Carga en progreso - calcular tiempo desde inicio hasta ahora
+            durationMinutes = Math.floor((new Date() - startTime) / 60000);
+          }
+          
+          chargesWithStatus.push({
+            ...change,
+            isCompleted,
+            durationMinutes,
+            isOverLimit: isCompleted && durationMinutes > 120 // Mas de 2 horas
+          });
+        }
+      });
+      
+      // Ordenar por fecha descendente y limitar
+      const sortedCharges = chargesWithStatus
         .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-        .slice(0, 20); // Ultimas 20 cargas
-      setChargeHistory(startedCharges);
+        .slice(0, 50);
+      
+      setChargeHistory(sortedCharges);
       
       // Calcular cargas del dia actual (desde las 00:00)
       const today = new Date();
@@ -389,49 +433,53 @@ export default function MonitorPage() {
               </div>
             </div>
 
-            {/* LOG DE CARGAS COMPLETADAS */}
+            {/* LOG DE CARGAS */}
             <div className="mt-8">
-              <h2 className="text-2xl font-bold text-white mb-4">Histórico de Cargas Completadas</h2>
-              <div className="space-y-2 max-h-96 overflow-y-auto">
-                {chargeHistory.length > 0 ? (
-                  chargeHistory.map((charge, idx) => {
-                    const timestamp = new Date(charge.timestamp);
-                    const timeStr = timestamp.toLocaleTimeString('es-ES');
-                    const dateStr = timestamp.toLocaleDateString('es-ES');
-                    const durationMinutes = charge.duration_seconds ? Math.floor(charge.duration_seconds / 60) : 0;
-                    
-                    // Alternar colores
-                    const carColors = ['text-red-500', 'text-orange-500', 'text-yellow-500', 'text-green-500'];
-                    const carColor = carColors[idx % carColors.length];
-                    const bgColor = idx % 2 === 0 ? 'bg-slate-800' : 'bg-slate-750';
-                    
-                    return (
-                      <div key={idx} className={`${bgColor} rounded p-3 flex items-center gap-3 border border-slate-600`}>
-                        <span className={`text-2xl ${carColor}`}>🚗</span>
-                        <div className="flex-1 font-mono text-sm text-slate-300">
-                          <div className="flex gap-4">
-                            <span className="text-slate-400">
-                              {dateStr} {timeStr}
+              <h2 className="text-2xl font-bold text-white mb-4">Historico de Cargas</h2>
+              <div className="border border-slate-600 rounded-lg overflow-hidden">
+                <div className="max-h-[400px] overflow-y-auto">
+                  {chargeHistory.length > 0 ? (
+                    chargeHistory.map((charge, idx) => {
+                      const timestamp = new Date(charge.timestamp);
+                      const timeStr = timestamp.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+                      const dateStr = timestamp.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
+                      
+                      // Formato duracion: solo minutos o horas:minutos
+                      const mins = charge.durationMinutes || 0;
+                      const durationStr = mins >= 60 
+                        ? `${Math.floor(mins / 60)}h ${mins % 60}m` 
+                        : `${mins}m`;
+                      
+                      // Color de fondo segun estado
+                      // Gris: en progreso, Verde: completada, Rojo: completada + mas de 2h
+                      let bgColor = 'bg-slate-700'; // Gris - en progreso
+                      if (charge.isCompleted) {
+                        bgColor = charge.isOverLimit ? 'bg-red-900/70' : 'bg-green-900/50';
+                      }
+                      
+                      return (
+                        <div key={idx} className={`${bgColor} px-3 py-2 flex items-center gap-3 border-b border-slate-600 last:border-b-0`}>
+                          <span className="text-lg">🚗</span>
+                          <div className="flex-1 font-mono text-sm text-slate-200 flex flex-wrap gap-x-4 gap-y-1">
+                            <span className="text-slate-400">{dateStr} {timeStr}</span>
+                            <span className="text-blue-400">{charge.connector_id}</span>
+                            <span className="text-slate-300">{charge.station_name}</span>
+                            <span className={charge.isOverLimit ? 'text-red-400 font-bold' : 'text-yellow-400'}>
+                              {durationStr}
                             </span>
-                            <span className="text-blue-400">
-                              ID: {charge.connector_id}
-                            </span>
-                            <span className="text-green-400">
-                              {charge.station_name}
-                            </span>
-                            <span className="text-yellow-400">
-                              {durationMinutes}m cargando
-                            </span>
+                            {!charge.isCompleted && (
+                              <span className="text-orange-400 animate-pulse">En curso</span>
+                            )}
                           </div>
                         </div>
-                      </div>
-                    );
-                  })
-                ) : (
-                  <div className="bg-slate-800 rounded p-4 text-slate-400 text-center">
-                    Sin cargas registradas
-                  </div>
-                )}
+                      );
+                    })
+                  ) : (
+                    <div className="bg-slate-800 p-4 text-slate-400 text-center">
+                      Sin cargas registradas
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </>
