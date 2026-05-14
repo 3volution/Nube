@@ -277,16 +277,18 @@ export default async function handler(req, res) {
           con.debug_timestamp_calculated = offsetTimestampISO;
           
           if (prev && prev.status !== con.status) {
-            // Estado CAMBIÓ - crear timestamp nuevo (ahora)
+            // Estado CAMBIO - crear timestamp nuevo (ahora)
             con.status_changed_at = new Date().toISOString();
             
-            // Registrar cambio de estado
+            // Registrar cambio de estado SIEMPRE que haya un cambio
+            const ahora = new Date();
+            let tiempoEnSegundos = 0;
             if (prev.status_changed_at) {
               const prevTimestamp = new Date(prev.status_changed_at);
-              const ahora = new Date();
-              const tiempoEnSegundos = Math.floor((ahora - prevTimestamp) / 1000);
-              await guardarCambioEstado(con.visualRef || con.id, est.id, est.nombre, prev.status, con.status, tiempoEnSegundos);
+              tiempoEnSegundos = Math.floor((ahora - prevTimestamp) / 1000);
             }
+            await guardarCambioEstado(con.visualRef || con.id, est.id, est.nombre, prev.status, con.status, tiempoEnSegundos);
+            console.log(`[v0] CAMBIO DETECTADO: ${est.nombre} - Conector ${con.visualRef || con.id}: ${prev.status} -> ${con.status}`);
             
             // Notificación solo si cambió a LIBRE
             const estabaOcupado = prev.status !== "FREE" && prev.status !== "AVAILABLE";
