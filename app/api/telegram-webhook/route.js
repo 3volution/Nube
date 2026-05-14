@@ -4,6 +4,24 @@
 // /liberar [ID] - Cambia el cargador a LIBRE (ej: /liberar 003657)
 // /estado - Ver estado actual de cargadores de prueba
 
+// Mapeo de IDs de conectores a estaciones
+const CONECTOR_A_ESTACION = {
+  '003657': { station_id: '828535', station_name: 'Calle Almendralejo (2)' },
+  '003658': { station_id: '828535', station_name: 'Calle Almendralejo (2)' },
+  '003659': { station_id: '828524', station_name: 'Avda. Roma' },
+  '003660': { station_id: '828524', station_name: 'Avda. Roma' },
+  '003651': { station_id: '828535', station_name: 'Calle Almendralejo (2)' },
+  '003652': { station_id: '828535', station_name: 'Calle Almendralejo (2)' },
+  '003653': { station_id: '828534', station_name: 'Calle Almendralejo (1)' },
+  '003654': { station_id: '828534', station_name: 'Calle Almendralejo (1)' },
+  '003649': { station_id: '828523', station_name: 'Plaza Xirgu' },
+  '003650': { station_id: '828523', station_name: 'Plaza Xirgu' },
+  '003655': { station_id: '828537', station_name: 'Estacion Bus' },
+  '003656': { station_id: '828537', station_name: 'Estacion Bus' },
+  '003661': { station_id: '828538', station_name: 'Avda. del Prado' },
+  '003662': { station_id: '828538', station_name: 'Avda. del Prado' },
+};
+
 export async function POST(request) {
   const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
   const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
@@ -50,7 +68,23 @@ export async function POST(request) {
         return Response.json({ ok: true });
       }
 
-      // Guardar estado en Supabase
+      // Obtener info de la estacion
+      const stationInfo = CONECTOR_A_ESTACION[connectorId] || { station_id: 'UNKNOWN', station_name: 'Desconocida' };
+
+      // Obtener estado anterior ANTES de borrar
+      const prevRes = await fetch(`${SUPABASE_URL}/rest/v1/test_connectors?connector_id=eq.${connectorId}`, {
+        headers: { 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY }
+      });
+      const prevData = await prevRes.json();
+      const estadoAnterior = prevData.length > 0 ? prevData[0].status : 'FREE';
+
+      // Si ya esta OCUPADO, no hacer nada
+      if (estadoAnterior === 'OCCUPIED') {
+        await enviarRespuesta(`El cargador ${connectorId} ya esta OCUPADO`);
+        return Response.json({ ok: true });
+      }
+
+      // Borrar registro anterior
       await fetch(`${SUPABASE_URL}/rest/v1/test_connectors?connector_id=eq.${connectorId}`, {
         method: 'DELETE',
         headers: {
@@ -59,13 +93,7 @@ export async function POST(request) {
         }
       });
 
-      // Obtener estado anterior
-      const prevRes = await fetch(`${SUPABASE_URL}/rest/v1/test_connectors?connector_id=eq.${connectorId}`, {
-        headers: { 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY }
-      });
-      const prevData = await prevRes.json();
-      const estadoAnterior = prevData.length > 0 ? prevData[0].status : 'FREE';
-
+      // Guardar nuevo estado
       await fetch(`${SUPABASE_URL}/rest/v1/test_connectors`, {
         method: 'POST',
         headers: {
@@ -95,15 +123,15 @@ export async function POST(request) {
           dia: ['Domingo','Lunes','Martes','Miercoles','Jueves','Viernes','Sabado'][ahora.getDay()],
           hora: ahora.toTimeString().slice(0, 8),
           connector_id: connectorId,
-          station_id: 'TEST',
-          station_name: 'Cargador Ficticio',
+          station_id: stationInfo.station_id,
+          station_name: stationInfo.station_name,
           estado_anterior: estadoAnterior,
           estado_nuevo: 'OCCUPIED',
           tiempo_en_estado_anterior_segundos: 0
         })
       });
 
-      await enviarRespuesta(`Cargador ${connectorId} ahora esta OCUPADO (registrado en historial)`);
+      await enviarRespuesta(`${stationInfo.station_name} - Cargador ${connectorId} ahora OCUPADO`);
 
     } else if (text.startsWith('/liberar')) {
       const partes = text.split(' ');
@@ -114,14 +142,30 @@ export async function POST(request) {
         return Response.json({ ok: true });
       }
 
-      // Obtener estado anterior
+      // Obtener info de la estacion
+      const stationInfoLib = CONECTOR_A_ESTACION[connectorId] || { station_id: 'UNKNOWN', station_name: 'Desconocida' };
+
+      // Obtener estado anterior y timestamp
       const prevResLib = await fetch(`${SUPABASE_URL}/rest/v1/test_connectors?connector_id=eq.${connectorId}`, {
         headers: { 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY }
       });
       const prevDataLib = await prevResLib.json();
       const estadoAnteriorLib = prevDataLib.length > 0 ? prevDataLib[0].status : 'OCCUPIED';
+      const prevTimestamp = prevDataLib.length > 0 ? prevDataLib[0].status_updated_at : null;
 
-      // Guardar estado en Supabase
+      // Si ya esta LIBRE, no hacer nada
+      if (estadoAnteriorLib === 'FREE') {
+        await enviarRespuesta(`El cargador ${connectorId} ya esta LIBRE`);
+        return Response.json({ ok: true });
+      }
+
+      // Calcular tiempo en estado anterior
+      let tiempoEnEstado = 0;
+      if (prevTimestamp) {
+        tiempoEnEstado = Math.floor((new Date() - new Date(prevTimestamp)) / 1000);
+      }
+
+      // Borrar registro anterior
       await fetch(`${SUPABASE_URL}/rest/v1/test_connectors?connector_id=eq.${connectorId}`, {
         method: 'DELETE',
         headers: {
@@ -130,6 +174,7 @@ export async function POST(request) {
         }
       });
 
+      // Guardar nuevo estado
       await fetch(`${SUPABASE_URL}/rest/v1/test_connectors`, {
         method: 'POST',
         headers: {
@@ -159,15 +204,16 @@ export async function POST(request) {
           dia: ['Domingo','Lunes','Martes','Miercoles','Jueves','Viernes','Sabado'][ahoraLib.getDay()],
           hora: ahoraLib.toTimeString().slice(0, 8),
           connector_id: connectorId,
-          station_id: 'TEST',
-          station_name: 'Cargador Ficticio',
+          station_id: stationInfoLib.station_id,
+          station_name: stationInfoLib.station_name,
           estado_anterior: estadoAnteriorLib,
           estado_nuevo: 'FREE',
-          tiempo_en_estado_anterior_segundos: 0
+          tiempo_en_estado_anterior_segundos: tiempoEnEstado
         })
       });
 
-      await enviarRespuesta(`Cargador ${connectorId} ahora esta LIBRE (registrado en historial)`);
+      const minutos = Math.floor(tiempoEnEstado / 60);
+      await enviarRespuesta(`${stationInfoLib.station_name} - Cargador ${connectorId} LIBERADO (${minutos}m cargando)`);
 
     } else if (text === '/estado') {
       // Obtener estado actual de cargadores ficticios
