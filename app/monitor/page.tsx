@@ -80,6 +80,7 @@ export default function MonitorPage() {
       
       // Crear historial distinguiendo entre cargas en progreso y completadas
       const chargesWithStatus: Array<typeof stateChanges[0] & { isCompleted: boolean; durationMinutes: number; isOverLimit: boolean }> = [];
+      const processedPairs = new Set<string>(); // Para evitar duplicados (OCCUPIED-FREE pair)
       
       Object.values(changesByConnector).forEach(connectorChanges => {
         // Recorrer los eventos en orden cronologico
@@ -91,9 +92,9 @@ export default function MonitorPage() {
             const startTime = new Date(change.timestamp).getTime();
             let durationMinutes = 0;
             let isCompleted = false;
+            let endEvent = null;
             
             // Buscar si hay un FREE posterior
-            let endEvent = null;
             for (let j = i + 1; j < connectorChanges.length; j++) {
               if (connectorChanges[j].new_status === 'FREE' || connectorChanges[j].new_status === 'AVAILABLE') {
                 endEvent = connectorChanges[j];
@@ -106,6 +107,13 @@ export default function MonitorPage() {
               const endTime = new Date(endEvent.timestamp).getTime();
               durationMinutes = Math.floor((endTime - startTime) / 60000);
               isCompleted = true;
+              
+              // Crear ID único para este par OCCUPIED-FREE
+              const pairId = `${change.connector_id}-${change.timestamp}-${endEvent.timestamp}`;
+              
+              // Evitar duplicados
+              if (processedPairs.has(pairId)) continue;
+              processedPairs.add(pairId);
             } else {
               // Carga en progreso
               durationMinutes = Math.floor((Date.now() - startTime) / 60000);
@@ -296,6 +304,13 @@ export default function MonitorPage() {
     return '🔴';
   };
 
+  // Función para generar color de coche basado en conector ID
+  const getCarColor = (connectorId: string) => {
+    const colors = ['🔴', '🟠', '🟡', '🟢', '🔵', '🟣', '🟤', '⚪'];
+    const hash = connectorId.charCodeAt(connectorId.length - 1) || 0;
+    return colors[hash % colors.length];
+  };
+
   // Agrupar estaciones de Calle Almendralejo con IDs específicas
   const displayStations = stations.reduce((acc, station) => {
     if (station.id === 828534) {
@@ -482,18 +497,30 @@ export default function MonitorPage() {
                       }
                       
                       return (
-                        <div key={idx} className={`${bgColor} px-3 py-2 flex items-center gap-3 border-b border-slate-600 last:border-b-0`}>
-                          <span className="text-lg">🚗</span>
-                          <div className="flex-1 font-mono text-sm text-slate-200 flex flex-wrap gap-x-4 gap-y-1">
-                            <span className="text-slate-400">{dateStr} {timeStr}</span>
-                            <span className="text-blue-400">{charge.connector_id}</span>
-                            <span className="text-slate-300">{charge.station_name}</span>
-                            <span className={charge.isOverLimit ? 'text-red-400 font-bold' : 'text-yellow-400'}>
-                              {durationStr}
-                            </span>
-                            {!charge.isCompleted && (
-                              <span className="text-orange-400 animate-pulse">En curso</span>
-                            )}
+                        <div key={idx} className={`${bgColor} px-3 py-2 flex items-start gap-2 border-b border-slate-600 last:border-b-0`}>
+                          <span className="text-2xl mt-1">{getCarColor(charge.connector_id)}</span>
+                          <div className="flex-1">
+                            {/* Primera línea: fecha, hora, ID */}
+                            <div className="font-mono text-sm text-slate-300 flex gap-3 mb-1">
+                              <span className="text-slate-400">{dateStr} {timeStr}</span>
+                              <span className="text-blue-300 font-bold">ID: {charge.connector_id}</span>
+                            </div>
+                            {/* Segunda línea: ubicación y tiempo */}
+                            <div className="font-mono text-sm flex gap-3 items-center">
+                              <span className="text-slate-300">{charge.station_name}</span>
+                              <span className={
+                                !charge.isCompleted 
+                                  ? 'text-yellow-400 font-semibold' 
+                                  : charge.isOverLimit 
+                                  ? 'text-red-400 font-bold' 
+                                  : 'text-green-400 font-bold'
+                              }>
+                                {durationStr}
+                              </span>
+                              {!charge.isCompleted && (
+                                <span className="text-orange-400 animate-pulse text-xs">activo</span>
+                              )}
+                            </div>
                           </div>
                         </div>
                       );
