@@ -65,32 +65,62 @@ export default function MonitorPage() {
   // Extraer historial de cargas con estado (en progreso / completada)
   useEffect(() => {
     if (stateChanges.length > 0) {
-      // Procesar cada cambio de estado
+      // Ordenar todos los cambios por timestamp ascendente para procesar cronologicamente
+      const sortedByTime = [...stateChanges].sort((a, b) => 
+        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+      );
+      
+      // Agrupar por conector
+      const changesByConnector: Record<string, typeof stateChanges> = {};
+      sortedByTime.forEach(change => {
+        const key = change.connector_id;
+        if (!changesByConnector[key]) changesByConnector[key] = [];
+        changesByConnector[key].push(change);
+      });
+      
+      // Procesar cada cambio y calcular duracion real
       const chargesWithStatus = stateChanges.map(change => {
-        // Determinar si es carga completada (cambio a FREE) o en progreso (cambio a OCCUPIED)
         const isCompleted = change.new_status === 'FREE' || change.new_status === 'AVAILABLE';
-        
         let durationMinutes = 0;
+        
         if (isCompleted) {
-          // Carga completada - usar duration_seconds del registro
-          durationMinutes = change.duration_seconds ? Math.floor(change.duration_seconds / 60) : 0;
+          // Buscar el evento OCCUPIED anterior para este conector
+          const connectorChanges = changesByConnector[change.connector_id] || [];
+          const changeTime = new Date(change.timestamp).getTime();
+          
+          // Buscar el OCCUPIED mas reciente ANTES de este FREE
+          let occupiedEvent = null;
+          for (let i = connectorChanges.length - 1; i >= 0; i--) {
+            const c = connectorChanges[i];
+            const cTime = new Date(c.timestamp).getTime();
+            if (cTime < changeTime && c.new_status !== 'FREE' && c.new_status !== 'AVAILABLE') {
+              occupiedEvent = c;
+              break;
+            }
+          }
+          
+          if (occupiedEvent) {
+            const startTime = new Date(occupiedEvent.timestamp).getTime();
+            const endTime = new Date(change.timestamp).getTime();
+            durationMinutes = Math.floor((endTime - startTime) / 60000);
+          }
         } else {
           // Carga en progreso - calcular tiempo desde inicio hasta ahora
           const startTime = new Date(change.timestamp);
-          durationMinutes = Math.floor((new Date() - startTime) / 60000);
+          durationMinutes = Math.floor((new Date().getTime() - startTime.getTime()) / 60000);
         }
         
         return {
           ...change,
           isCompleted,
           durationMinutes,
-          isOverLimit: isCompleted && durationMinutes > 120 // Mas de 2 horas
+          isOverLimit: isCompleted && durationMinutes > 120
         };
       });
       
       // Ordenar por fecha descendente y limitar
       const sortedCharges = chargesWithStatus
-        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
         .slice(0, 50);
       
       setChargeHistory(sortedCharges);
