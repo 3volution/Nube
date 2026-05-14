@@ -46,7 +46,6 @@ export default function MonitorPage() {
 
       if (changesRes.ok) {
         const changesData = await changesRes.json();
-        console.log('[v0] State changes received:', changesData);
         setStateChanges(changesData.changes || []);
       }
 
@@ -65,17 +64,12 @@ export default function MonitorPage() {
 
   // Extraer historial de cargas (cambios a OCUPADO = coche empieza a cargar)
   useEffect(() => {
-    console.log('[v0] stateChanges length:', stateChanges.length);
     if (stateChanges.length > 0) {
-      console.log('[v0] First change:', stateChanges[0]);
-      console.log('[v0] First change new_status:', stateChanges[0].new_status);
-      console.log('[v0] All new_status values:', stateChanges.map(c => c.new_status));
       // Historial: cuando un coche EMPIEZA a cargar (LIBRE -> OCUPADO)
       const startedCharges = stateChanges
         .filter(change => change.new_status !== 'FREE' && change.new_status !== 'AVAILABLE')
         .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
         .slice(0, 20); // Ultimas 20 cargas
-      console.log('[v0] Filtered startedCharges:', startedCharges.length);
       setChargeHistory(startedCharges);
       
       // Calcular cargas del dia actual (desde las 00:00)
