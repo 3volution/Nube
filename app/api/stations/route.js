@@ -76,10 +76,8 @@ export async function GET(request) {
     return data.connectors;
   }
 
-  // Cargadores ficticios (controlados via Telegram)
-  const CARGADORES_FICTICIOS = ['003657', '003658'];
-
-  async function obtenerCargadoresFicticios() {
+  // Cargadores de prueba (controlados via Telegram - cualquier ID)
+  async function obtenerCargadoresPrueba() {
     if (!SUPABASE_URL || !SUPABASE_KEY) return {};
     try {
       const res = await fetch(`${SUPABASE_URL}/rest/v1/test_connectors`, {
@@ -98,7 +96,7 @@ export async function GET(request) {
       });
       return map;
     } catch (e) {
-      console.error('[v0] Error obteniendo cargadores ficticios:', e);
+      console.error('[v0] Error obteniendo cargadores de prueba:', e);
       return {};
     }
   }
@@ -107,8 +105,8 @@ export async function GET(request) {
     // Obtener token de Electromaps
     const token = await obtenerTokenElectromaps(ELECTROMAPS_USER, ELECTROMAPS_PASS);
     
-    // Obtener estado de cargadores ficticios
-    const cargadoresFicticios = await obtenerCargadoresFicticios();
+    // Obtener estado de cargadores de prueba (controlados via Telegram)
+    const cargadoresPrueba = await obtenerCargadoresPrueba();
     
     // Obtener datos de todas las estaciones directamente de Electromaps
     const formattedStations = await Promise.all(
@@ -117,14 +115,13 @@ export async function GET(request) {
           const conectoresRaw = await consultarEstado(est.id, token);
           
           const formattedConnectors = conectoresRaw.map(connector => {
-            // Verificar si es un cargador ficticio
+            // Verificar si hay override de prueba para este cargador
             const visualRef = connector.visualRef || String(connector.id);
-            const esFicticio = CARGADORES_FICTICIOS.includes(visualRef);
-            const datosFicticios = esFicticio ? cargadoresFicticios[visualRef] : null;
+            const datosPrueba = cargadoresPrueba[visualRef] || null;
             
-            // Usar datos ficticios si existen, sino usar datos de Electromaps
-            const status = datosFicticios ? datosFicticios.status : connector.status;
-            const statusUpdatedAt = datosFicticios ? datosFicticios.status_updated_at : connector.status_updated_at;
+            // Usar datos de prueba si existen, sino usar datos de Electromaps
+            const status = datosPrueba ? datosPrueba.status : connector.status;
+            const statusUpdatedAt = datosPrueba ? datosPrueba.status_updated_at : connector.status_updated_at;
             
             return {
               id: connector.id,
@@ -134,7 +131,7 @@ export async function GET(request) {
               time_in_state: 'Tiempo real',
               status_updated_at: statusUpdatedAt,
               status_changed_at: statusUpdatedAt,
-              es_ficticio: esFicticio
+              es_test: !!datosPrueba
             };
           });
           

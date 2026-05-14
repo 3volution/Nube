@@ -233,26 +233,25 @@ export default async function handler(req, res) {
     let notificacionesEnviadas = 0;
     let cambiosDetectados = [];
 
-    // Cargadores ficticios (controlados via Telegram)
-    const CARGADORES_FICTICIOS = ['003657', '003658'];
-    let cargadoresFicticios = {};
+    // Cargadores de prueba (controlados via Telegram - cualquier ID)
+    let cargadoresPrueba = {};
     try {
-      const resFicticios = await fetch(`${SUPABASE_URL}/rest/v1/test_connectors`, {
+      const resPrueba = await fetch(`${SUPABASE_URL}/rest/v1/test_connectors`, {
         headers: {
           'Authorization': `Bearer ${SUPABASE_KEY}`,
           'apikey': SUPABASE_KEY
         }
       });
-      const dataFicticios = await resFicticios.json();
-      dataFicticios.forEach(c => {
-        cargadoresFicticios[c.connector_id] = {
+      const dataPrueba = await resPrueba.json();
+      dataPrueba.forEach(c => {
+        cargadoresPrueba[c.connector_id] = {
           status: c.status,
           status_updated_at: c.status_updated_at
         };
       });
-      console.log("[v0] Cargadores ficticios:", Object.keys(cargadoresFicticios).length);
+      console.log("[v0] Cargadores de prueba:", Object.keys(cargadoresPrueba).length);
     } catch (e) {
-      console.log("[v0] Error obteniendo cargadores ficticios:", e.message);
+      console.log("[v0] Error obteniendo cargadores de prueba:", e.message);
     }
 
     console.log("[v0] Token obtenido de Electromaps");
@@ -290,12 +289,12 @@ export default async function handler(req, res) {
           const con = actuales[index];
           const prev = anteriores.find(c => c.id === con.id);
           
-          // OVERRIDE: Si es cargador ficticio, usar datos de test_connectors
+          // OVERRIDE: Si hay datos de prueba para este cargador, usarlos
           const visualRef = con.visualRef || String(con.id);
-          if (CARGADORES_FICTICIOS.includes(visualRef) && cargadoresFicticios[visualRef]) {
-            con.status = cargadoresFicticios[visualRef].status;
-            con.status_updated_at = cargadoresFicticios[visualRef].status_updated_at;
-            console.log(`[v0] Cargador ficticio ${visualRef}: ${con.status}`);
+          if (cargadoresPrueba[visualRef]) {
+            con.status = cargadoresPrueba[visualRef].status;
+            con.status_updated_at = cargadoresPrueba[visualRef].status_updated_at;
+            console.log(`[v0] Cargador de prueba ${visualRef}: ${con.status}`);
           }
           
           // Calcular timestamp escalonado (0, 1, 2, 3... segundos atrás)

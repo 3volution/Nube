@@ -1,17 +1,14 @@
-// Endpoint para recibir comandos de Telegram y controlar cargadores ficticios
+// Endpoint para recibir comandos de Telegram y controlar cargadores de prueba
 // Comandos disponibles:
-// /ocupar 003657 - Cambia el cargador a OCUPADO
-// /liberar 003657 - Cambia el cargador a LIBRE
-// /estado - Ver estado actual de cargadores ficticios
+// /ocupar [ID] - Cambia el cargador a OCUPADO (ej: /ocupar 003657)
+// /liberar [ID] - Cambia el cargador a LIBRE (ej: /liberar 003657)
+// /estado - Ver estado actual de cargadores de prueba
 
 export async function POST(request) {
   const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
   const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
   const SUPABASE_URL = process.env.SUPABASE_URL;
   const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY;
-
-  // Cargadores ficticios permitidos
-  const CARGADORES_FICTICIOS = ['003657', '003658'];
 
   try {
     const body = await request.json();
@@ -48,8 +45,8 @@ export async function POST(request) {
       const partes = text.split(' ');
       const connectorId = partes[1];
 
-      if (!connectorId || !CARGADORES_FICTICIOS.includes(connectorId)) {
-        await enviarRespuesta(`Uso: /ocupar [ID]\nIDs validos: ${CARGADORES_FICTICIOS.join(', ')}`);
+      if (!connectorId) {
+        await enviarRespuesta(`Uso: /ocupar [ID]\nEjemplo: /ocupar 003657`);
         return Response.json({ ok: true });
       }
 
@@ -112,8 +109,8 @@ export async function POST(request) {
       const partes = text.split(' ');
       const connectorId = partes[1];
 
-      if (!connectorId || !CARGADORES_FICTICIOS.includes(connectorId)) {
-        await enviarRespuesta(`Uso: /liberar [ID]\nIDs validos: ${CARGADORES_FICTICIOS.join(', ')}`);
+      if (!connectorId) {
+        await enviarRespuesta(`Uso: /liberar [ID]\nEjemplo: /liberar 003657`);
         return Response.json({ ok: true });
       }
 
