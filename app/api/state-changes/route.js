@@ -25,11 +25,13 @@ export async function GET(request) {
       fecha: change.fecha,
       dia: change.dia,
       hora: change.hora,
-      connectorId: change.connector_id,
-      stationId: change.station_id,
-      stationName: change.station_name,
-      estadoAnterior: change.estado_anterior,
-      estadoNuevo: change.estado_nuevo,
+      timestamp: change.timestamp,
+      connector_id: change.connector_id,
+      station_id: change.station_id,
+      station_name: change.station_name,
+      old_status: change.estado_anterior,
+      new_status: change.estado_nuevo,
+      duration_seconds: change.tiempo_en_estado_anterior_segundos,
       tiempoEnEstadoAnterior: change.tiempo_en_estado_anterior_segundos
         ? `${Math.floor(change.tiempo_en_estado_anterior_segundos / 3600)}h ${Math.floor((change.tiempo_en_estado_anterior_segundos % 3600) / 60)}m`
         : 'N/A'
