@@ -65,7 +65,7 @@ export default function MonitorPage() {
   // Extraer historial de cargas con estado (en progreso / completada)
   useEffect(() => {
     if (stateChanges.length > 0) {
-      // Ordenar todos los cambios por timestamp ascendente para procesar cronologicamente
+      // Ordenar cronologicamente
       const sortedByTime = [...stateChanges].sort((a, b) => 
         new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
       );
@@ -78,47 +78,51 @@ export default function MonitorPage() {
         changesByConnector[key].push(change);
       });
       
-      // Procesar cada cambio y calcular duracion real
-      const chargesWithStatus = stateChanges.map(change => {
-        const isCompleted = change.new_status === 'FREE' || change.new_status === 'AVAILABLE';
-        let durationMinutes = 0;
-        
-        if (isCompleted) {
-          // Buscar el evento OCCUPIED anterior para este conector
-          const connectorChanges = changesByConnector[change.connector_id] || [];
-          const changeTime = new Date(change.timestamp).getTime();
+      // Crear historial distinguiendo entre cargas en progreso y completadas
+      const chargesWithStatus: Array<typeof stateChanges[0] & { isCompleted: boolean; durationMinutes: number; isOverLimit: boolean }> = [];
+      
+      Object.values(changesByConnector).forEach(connectorChanges => {
+        // Recorrer los eventos en orden cronologico
+        for (let i = 0; i < connectorChanges.length; i++) {
+          const change = connectorChanges[i];
           
-          // Buscar el OCCUPIED mas reciente ANTES de este FREE
-          let occupiedEvent = null;
-          for (let i = connectorChanges.length - 1; i >= 0; i--) {
-            const c = connectorChanges[i];
-            const cTime = new Date(c.timestamp).getTime();
-            if (cTime < changeTime && c.new_status !== 'FREE' && c.new_status !== 'AVAILABLE') {
-              occupiedEvent = c;
-              break;
+          // Si es OCUPADO, es inicio de carga
+          if (change.new_status !== 'FREE' && change.new_status !== 'AVAILABLE') {
+            const startTime = new Date(change.timestamp).getTime();
+            let durationMinutes = 0;
+            let isCompleted = false;
+            
+            // Buscar si hay un FREE posterior
+            let endEvent = null;
+            for (let j = i + 1; j < connectorChanges.length; j++) {
+              if (connectorChanges[j].new_status === 'FREE' || connectorChanges[j].new_status === 'AVAILABLE') {
+                endEvent = connectorChanges[j];
+                break;
+              }
             }
+            
+            if (endEvent) {
+              // Carga completada
+              const endTime = new Date(endEvent.timestamp).getTime();
+              durationMinutes = Math.floor((endTime - startTime) / 60000);
+              isCompleted = true;
+            } else {
+              // Carga en progreso
+              durationMinutes = Math.floor((Date.now() - startTime) / 60000);
+              isCompleted = false;
+            }
+            
+            chargesWithStatus.push({
+              ...change,
+              isCompleted,
+              durationMinutes,
+              isOverLimit: isCompleted && durationMinutes > 120
+            });
           }
-          
-          if (occupiedEvent) {
-            const startTime = new Date(occupiedEvent.timestamp).getTime();
-            const endTime = new Date(change.timestamp).getTime();
-            durationMinutes = Math.floor((endTime - startTime) / 60000);
-          }
-        } else {
-          // Carga en progreso - calcular tiempo desde inicio hasta ahora
-          const startTime = new Date(change.timestamp);
-          durationMinutes = Math.floor((new Date().getTime() - startTime.getTime()) / 60000);
         }
-        
-        return {
-          ...change,
-          isCompleted,
-          durationMinutes,
-          isOverLimit: isCompleted && durationMinutes > 120
-        };
       });
       
-      // Ordenar por fecha descendente y limitar
+      // Ordenar por fecha descendente y limitar a 50
       const sortedCharges = chargesWithStatus
         .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
         .slice(0, 50);
