@@ -5,7 +5,7 @@ export async function GET(request) {
 
   try {
     const response = await fetch(
-      `${SUPABASE_URL}/rest/v1/connector_state_changes?order=timestamp.desc&limit=${limit}`,
+      `${SUPABASE_URL}/rest/v1/connector_state_changes?order=id.desc&limit=${limit}`,
       {
         headers: {
           "Authorization": `Bearer ${SUPABASE_KEY}`,
@@ -20,20 +20,30 @@ export async function GET(request) {
 
     const changes = await response.json();
 
-    const formattedChanges = changes.map(change => ({
-      id: change.id,
-      fecha: change.fecha,
-      dia: change.dia,
-      hora: change.hora,
-      connectorId: change.connector_id,
-      stationId: change.station_id,
-      stationName: change.station_name,
-      estadoAnterior: change.estado_anterior,
-      estadoNuevo: change.estado_nuevo,
-      tiempoEnEstadoAnterior: change.tiempo_en_estado_anterior_segundos
-        ? `${Math.floor(change.tiempo_en_estado_anterior_segundos / 3600)}h ${Math.floor((change.tiempo_en_estado_anterior_segundos % 3600) / 60)}m`
-        : 'N/A'
-    }));
+    const formattedChanges = changes.map(change => {
+      // Crear timestamp a partir de fecha+hora si no existe
+      let timestamp = change.timestamp;
+      if (!timestamp && change.fecha && change.hora) {
+        timestamp = `${change.fecha}T${change.hora}`;
+      }
+      
+      return {
+        id: change.id,
+        fecha: change.fecha,
+        dia: change.dia,
+        hora: change.hora,
+        timestamp: timestamp,
+        connector_id: change.connector_id,
+        station_id: change.station_id,
+        station_name: change.station_name,
+        old_status: change.estado_anterior,
+        new_status: change.estado_nuevo,
+        duration_seconds: change.tiempo_en_estado_anterior_segundos,
+        tiempoEnEstadoAnterior: change.tiempo_en_estado_anterior_segundos
+          ? `${Math.floor(change.tiempo_en_estado_anterior_segundos / 3600)}h ${Math.floor((change.tiempo_en_estado_anterior_segundos % 3600) / 60)}m`
+          : 'N/A'
+      };
+    });
 
     return Response.json({
       success: true,

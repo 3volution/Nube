@@ -62,16 +62,17 @@ export default function MonitorPage() {
     }
   };
 
-  // Extraer historial de cargas completadas (OCCUPIED -> FREE)
+  // Extraer historial de cargas (cambios a OCUPADO = coche empieza a cargar)
   useEffect(() => {
     if (stateChanges.length > 0) {
-      const completedCharges = stateChanges
-        .filter(change => change.new_status === 'FREE' || change.new_status === 'AVAILABLE')
+      // Historial: cuando un coche EMPIEZA a cargar (LIBRE -> OCUPADO)
+      const startedCharges = stateChanges
+        .filter(change => change.new_status !== 'FREE' && change.new_status !== 'AVAILABLE')
         .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-        .slice(0, 20); // Últimas 20 cargas
-      setChargeHistory(completedCharges);
+        .slice(0, 20); // Ultimas 20 cargas
+      setChargeHistory(startedCharges);
       
-      // Calcular cargas del día actual (desde las 00:00)
+      // Calcular cargas del dia actual (desde las 00:00)
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       
@@ -80,8 +81,8 @@ export default function MonitorPage() {
       
       stateChanges.forEach(change => {
         const changeTime = new Date(change.timestamp);
-        // Solo contar si es del día actual
-        if (changeTime >= today && (change.new_status === 'FREE' || change.new_status === 'AVAILABLE')) {
+        // Solo contar si es del dia actual Y si pasa a OCUPADO (coche empieza a cargar)
+        if (changeTime >= today && change.new_status !== 'FREE' && change.new_status !== 'AVAILABLE') {
           const stationName = change.station_name;
           chargesPerStation[stationName] = (chargesPerStation[stationName] || 0) + 1;
           totalCharges++;
