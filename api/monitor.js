@@ -312,12 +312,26 @@ export default async function handler(req, res) {
             // Registrar cambio de estado SIEMPRE que haya un cambio
             const ahora = new Date();
             let tiempoEnSegundos = 0;
-            if (prev.status_changed_at) {
-              const prevTimestamp = new Date(prev.status_changed_at);
+            
+            // DEBUG: Ver que valores tiene prev
+            console.log(`[v0] DEBUG prev para ${con.visualRef || con.id}:`, {
+              prev_status: prev.status,
+              prev_status_changed_at: prev.status_changed_at,
+              prev_status_updated_at: prev.status_updated_at
+            });
+            
+            // Usar status_changed_at o status_updated_at como fallback
+            const prevTimestampStr = prev.status_changed_at || prev.status_updated_at;
+            if (prevTimestampStr) {
+              const prevTimestamp = new Date(prevTimestampStr);
               tiempoEnSegundos = Math.floor((ahora - prevTimestamp) / 1000);
+              console.log(`[v0] DEBUG tiempo calculado: ${tiempoEnSegundos}s (${Math.floor(tiempoEnSegundos/60)}m)`);
+            } else {
+              console.log(`[v0] DEBUG: No hay timestamp previo, tiempo = 0`);
             }
+            
             await guardarCambioEstado(con.visualRef || con.id, est.id, est.nombre, prev.status, con.status, tiempoEnSegundos);
-            console.log(`[v0] CAMBIO DETECTADO: ${est.nombre} - Conector ${con.visualRef || con.id}: ${prev.status} -> ${con.status}`);
+            console.log(`[v0] CAMBIO DETECTADO: ${est.nombre} - Conector ${con.visualRef || con.id}: ${prev.status} -> ${con.status} (${tiempoEnSegundos}s)`);
             
             // Notificación solo si cambió a LIBRE
             const estabaOcupado = prev.status !== "FREE" && prev.status !== "AVAILABLE";
