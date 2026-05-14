@@ -233,6 +233,28 @@ export default async function handler(req, res) {
     let notificacionesEnviadas = 0;
     let cambiosDetectados = [];
 
+    // Cargadores ficticios (controlados via Telegram)
+    const CARGADORES_FICTICIOS = ['003657', '003658'];
+    let cargadoresFicticios = {};
+    try {
+      const resFicticios = await fetch(`${SUPABASE_URL}/rest/v1/test_connectors`, {
+        headers: {
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+          'apikey': SUPABASE_KEY
+        }
+      });
+      const dataFicticios = await resFicticios.json();
+      dataFicticios.forEach(c => {
+        cargadoresFicticios[c.connector_id] = {
+          status: c.status,
+          status_updated_at: c.status_updated_at
+        };
+      });
+      console.log("[v0] Cargadores ficticios:", Object.keys(cargadoresFicticios).length);
+    } catch (e) {
+      console.log("[v0] Error obteniendo cargadores ficticios:", e.message);
+    }
+
     console.log("[v0] Token obtenido de Electromaps");
     console.log("[v0] SUPABASE_URL:", SUPABASE_URL ? "✓ Configurada" : "✗ NO");
     console.log("[v0] SUPABASE_KEY:", SUPABASE_KEY ? "✓ Configurada" : "✗ NO");
@@ -267,6 +289,14 @@ export default async function handler(req, res) {
         for (let index = 0; index < actuales.length; index++) {
           const con = actuales[index];
           const prev = anteriores.find(c => c.id === con.id);
+          
+          // OVERRIDE: Si es cargador ficticio, usar datos de test_connectors
+          const visualRef = con.visualRef || String(con.id);
+          if (CARGADORES_FICTICIOS.includes(visualRef) && cargadoresFicticios[visualRef]) {
+            con.status = cargadoresFicticios[visualRef].status;
+            con.status_updated_at = cargadoresFicticios[visualRef].status_updated_at;
+            console.log(`[v0] Cargador ficticio ${visualRef}: ${con.status}`);
+          }
           
           // Calcular timestamp escalonado (0, 1, 2, 3... segundos atrás)
           const offsetTimestamp = new Date(now.getTime() - (index * 1000));

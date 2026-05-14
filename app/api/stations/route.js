@@ -76,9 +76,39 @@ export async function GET(request) {
     return data.connectors;
   }
 
+  // Cargadores ficticios (controlados via Telegram)
+  const CARGADORES_FICTICIOS = ['003657', '003658'];
+
+  async function obtenerCargadoresFicticios() {
+    if (!SUPABASE_URL || !SUPABASE_KEY) return {};
+    try {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/test_connectors`, {
+        headers: {
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+          'apikey': SUPABASE_KEY
+        }
+      });
+      const data = await res.json();
+      const map = {};
+      data.forEach(c => {
+        map[c.connector_id] = {
+          status: c.status,
+          status_updated_at: c.status_updated_at
+        };
+      });
+      return map;
+    } catch (e) {
+      console.error('[v0] Error obteniendo cargadores ficticios:', e);
+      return {};
+    }
+  }
+
   try {
     // Obtener token de Electromaps
     const token = await obtenerTokenElectromaps(ELECTROMAPS_USER, ELECTROMAPS_PASS);
+    
+    // Obtener estado de cargadores ficticios
+    const cargadoresFicticios = await obtenerCargadoresFicticios();
     
     // Obtener datos de todas las estaciones directamente de Electromaps
     const formattedStations = await Promise.all(
@@ -86,15 +116,27 @@ export async function GET(request) {
         try {
           const conectoresRaw = await consultarEstado(est.id, token);
           
-          const formattedConnectors = conectoresRaw.map(connector => ({
-            id: connector.id,
-            visualRef: connector.visualRef,
-            status: connector.status,
-            status_display: connector.status === 'FREE' || connector.status === 'AVAILABLE' ? 'LIBRE' : 'OCUPADO',
-            time_in_state: 'Tiempo real',
-            status_updated_at: connector.status_updated_at,
-            status_changed_at: connector.status_updated_at
-          }));
+          const formattedConnectors = conectoresRaw.map(connector => {
+            // Verificar si es un cargador ficticio
+            const visualRef = connector.visualRef || String(connector.id);
+            const esFicticio = CARGADORES_FICTICIOS.includes(visualRef);
+            const datosFicticios = esFicticio ? cargadoresFicticios[visualRef] : null;
+            
+            // Usar datos ficticios si existen, sino usar datos de Electromaps
+            const status = datosFicticios ? datosFicticios.status : connector.status;
+            const statusUpdatedAt = datosFicticios ? datosFicticios.status_updated_at : connector.status_updated_at;
+            
+            return {
+              id: connector.id,
+              visualRef: visualRef,
+              status: status,
+              status_display: status === 'FREE' || status === 'AVAILABLE' ? 'LIBRE' : 'OCUPADO',
+              time_in_state: 'Tiempo real',
+              status_updated_at: statusUpdatedAt,
+              status_changed_at: statusUpdatedAt,
+              es_ficticio: esFicticio
+            };
+          });
           
           // GUARDAR EN SUPABASE para auditoría e histórico
           if (SUPABASE_URL && SUPABASE_KEY) {
