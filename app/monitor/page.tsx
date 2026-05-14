@@ -410,15 +410,15 @@ export default function MonitorPage() {
                         return (
                           <div key={idx} className="space-y-2">
                             <div
-                              className={`p-4 rounded-lg border-2 flex flex-col justify-center h-24 ${getStatusColor(connector.status)}`}
+                              className={`p-3 rounded-lg border-2 flex flex-col justify-center h-20 ${getStatusColor(connector.status)}`}
                             >
-                              <div className="text-xs opacity-75 mb-2">
+                              <div className="text-xs opacity-75 mb-1">
                                 ID: {connector.visualRef || connector.id}
                               </div>
-                              <div className="flex flex-col gap-2">
+                              <div className="flex flex-col gap-1">
                                 <div className="flex items-baseline gap-3">
-                                  <span className="text-2xl sm:text-3xl font-bold">{connector.status_display}</span>
-                                  <span className="text-lg sm:text-2xl font-semibold">{formatTime(connector.status_changed_at)}</span>
+                                  <span className="text-xl sm:text-2xl font-bold">{connector.status_display}</span>
+                                  <span className="text-sm sm:text-lg font-semibold">{formatTime(connector.status_changed_at)}</span>
                                 </div>
                               </div>
                             </div>
