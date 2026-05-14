@@ -6,8 +6,6 @@
 
 // Mapeo de IDs de conectores a estaciones
 const CONECTOR_A_ESTACION = {
-  '003657': { station_id: '828535', station_name: 'Calle Almendralejo (2)' },
-  '003658': { station_id: '828535', station_name: 'Calle Almendralejo (2)' },
   '003659': { station_id: '828524', station_name: 'Avda. Roma' },
   '003660': { station_id: '828524', station_name: 'Avda. Roma' },
   '003651': { station_id: '828535', station_name: 'Calle Almendralejo (2)' },
