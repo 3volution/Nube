@@ -351,7 +351,14 @@ export default function MonitorPage() {
       // Conectores que pertenecen a Calle Almendralejo (4 IDs específicas)
       const almendralejoCombined = [];
       if (almendralejo1) almendralejoCombined.push(...almendralejo1.connectors);
-      if (almendralejo2) almendralejoCombined.push(...almendralejo2.connectors);
+      if (almendralejo2) {
+        // Excluir 003657 y 003658 de Calle Almendralejo (2)
+        const filtered = almendralejo2.connectors.filter(c => {
+          const visualRef = c.visualRef || String(c.id);
+          return !['003657', '003658'].includes(visualRef);
+        });
+        almendralejoCombined.push(...filtered);
+      }
       
       // Buscar otros conectores de Calle Almendralejo por ID
       const otherStationsConnectors = stations
@@ -450,16 +457,7 @@ export default function MonitorPage() {
                     </div>
 
                     <div className="grid grid-cols-1 gap-3 max-h-96 overflow-y-auto pr-2">
-                      {station.connectors
-                        .filter(connector => {
-                          // Excluir 003657 y 003658 de Calle Almendralejo (2) - ID 828535
-                          if (station.id === 828535) {
-                            const visualRef = connector.visualRef || connector.id;
-                            return !['003657', '003658'].includes(visualRef);
-                          }
-                          return true;
-                        })
-                        .map((connector, idx) => {
+                      {station.connectors.map((connector, idx) => {
                         const statusChangedDate = connector.status_changed_at ? new Date(connector.status_changed_at) : null;
                         const now = new Date();
                         const diffSeconds = statusChangedDate ? Math.floor((now.getTime() - statusChangedDate.getTime()) / 1000) : null;
