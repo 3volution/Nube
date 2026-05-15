@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { APP_VERSION } from '@/app/config/version';
 
 export default function MonitorPage() {
@@ -53,8 +53,8 @@ export default function MonitorPage() {
     '828538': 'Avda. del Prado'
   };
 
-  // Función para obtener datos
-  const fetchData = async () => {
+  // Función para obtener datos usando useCallback
+  const fetchData = useCallback(async () => {
     try {
       const [stateChangesRes, stationsRes, chargesRes] = await Promise.all([
         fetch('/api/state-changes?limit=200'),
@@ -74,7 +74,7 @@ export default function MonitorPage() {
       setError('Error al cargar datos');
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (stateChanges.length > 0) {
@@ -376,7 +376,7 @@ export default function MonitorPage() {
   };
 
   // Agrupar estaciones de Calle Almendralejo con IDs específicas
-  const displayStations = stations.reduce((acc, station) => {
+  const displayStations = stations && Array.isArray(stations) ? stations.reduce((acc, station) => {
     if (station.id === 828534) {
       // Encontrar ambas estaciones de Calle Almendralejo (828534 y 828535)
       const almendralejo1 = station;
@@ -409,7 +409,7 @@ export default function MonitorPage() {
       acc.push(station);
     }
     return acc;
-  }, []);
+  }, []) : [];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 p-6">
