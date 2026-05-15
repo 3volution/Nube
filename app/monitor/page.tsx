@@ -176,38 +176,40 @@ export default function MonitorPage() {
       setDailyChargesPerStation(chargesPerStation);
       setTodayCharges(totalCharges);
       
-      // Calcular porcentaje de ocupación HOY como tiempo total ocupado / 17280 minutos máximos del día
-      let totalOccupiedTime = 0;
-      
-      chargeHistory.forEach(charge => {
-        const chargeTime = new Date(charge.timestamp);
-        if (chargeTime >= today && charge.durationMinutes) {
-          totalOccupiedTime += charge.durationMinutes;
-        }
-      });
-      
-      // Máximo de minutos disponibles en un día: 24 horas * 60 minutos * 12 conectores = 17280
-      const MAX_DAILY_MINUTES = 24 * 60 * 12; // 17280 minutos
-      
-      // Porcentaje: tiempo ocupado / 17280 minutos máximos (capped at 100%)
-      const occupancyPercent = Math.min(100, Math.round((totalOccupiedTime / MAX_DAILY_MINUTES) * 100));
-      
-      setTodayOccupancy(occupancyPercent);
-      
-      // Contar sancionables acumuladas HOY (cargas completadas que excedieron 2 horas)
-      // Usa isOverLimit que ya está calculado correctamente en el historial
-      const todaySanctionable = chargeHistory.filter(charge => {
-        const chargeTime = new Date(charge.timestamp);
-        return chargeTime >= today && charge.isOverLimit;
-      }).length;
-      
-      setTodaySanctionable(todaySanctionable);
-      
       // Calcular ocupancia por estación desde las 00:00
       const occupancyByStation = {};
       setOccupancyPerStation(occupancyByStation);
     }
   }, [stateChanges]);
+
+  // Recalcular estadísticas HOY cuando cambie chargeHistory
+  useEffect(() => {
+    if (chargeHistory.length === 0) return;
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    let totalOccupiedTime = 0;
+    
+    chargeHistory.forEach(charge => {
+      const chargeTime = new Date(charge.timestamp);
+      if (chargeTime >= today && charge.durationMinutes) {
+        totalOccupiedTime += charge.durationMinutes;
+      }
+    });
+    
+    const MAX_DAILY_MINUTES = 24 * 60 * 12;
+    const occupancyPercent = Math.min(100, Math.round((totalOccupiedTime / MAX_DAILY_MINUTES) * 100));
+    
+    setTodayOccupancy(occupancyPercent);
+    
+    const todaySanctionable = chargeHistory.filter(charge => {
+      const chargeTime = new Date(charge.timestamp);
+      return chargeTime >= today && charge.isOverLimit;
+    }).length;
+    
+    setTodaySanctionable(todaySanctionable);
+  }, [chargeHistory]);
 
   useEffect(() => {
     fetchData();
