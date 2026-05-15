@@ -612,48 +612,85 @@ export default function MonitorPage() {
               <div className="border border-slate-600 rounded-lg overflow-hidden">
                 <div className="max-h-[400px] overflow-y-auto">
                   {chargeHistory.length > 0 ? (
-                    chargeHistory.map((charge, idx) => {
-                      const timestamp = new Date(charge.timestamp);
-                      const timeStr = timestamp.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-                      const dateStr = timestamp.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
-                      
-                      // Formato duracion: solo minutos o horas:minutos
-                      const mins = charge.durationMinutes || 0;
-                      const durationStr = mins >= 60 
-                        ? `${Math.floor(mins / 60)}h ${mins % 60}m` 
-                        : `${mins}m`;
-                      
-                      // Color de fondo segun estado
-                      // Gris: en progreso, Verde: completada, Rojo: completada + mas de 2h
-                      let bgColor = 'bg-slate-700'; // Gris - en progreso
-                      if (charge.isCompleted) {
-                        bgColor = charge.isOverLimit ? 'bg-red-900/70' : 'bg-green-900/50';
-                      }
-                      
-                      return (
-                        <div key={idx} className={`${bgColor} px-3 py-2 flex items-start gap-2 border-b border-slate-600 last:border-b-0`}>
-                          <span className="text-2xl mt-1">{getCarIcon(charge.connector_id, idx)}</span>
-                          <div className="flex-1">
-                            {/* Primera línea: fecha, hora, ID */}
-                            <div className="font-mono text-sm text-slate-300 flex gap-3 mb-1">
-                              <span className="text-slate-400">{dateStr} {timeStr}</span>
-                              <span className="text-blue-300 font-bold">ID: {charge.connector_id}</span>
-                            </div>
-                            {/* Segunda línea: ubicación y tiempo */}
-                            <div className="font-mono text-sm flex gap-3 items-center">
-                              <span className="text-slate-300">{charge.station_name}</span>
-                              <span className={
-                                charge.isOverLimit 
-                                  ? 'text-red-400 font-bold' 
-                                  : 'text-green-400 font-bold'
-                              }>
-                                {durationStr}
-                              </span>
+                    <div>
+                      {chargeHistory.map((charge, idx) => {
+                        const timestamp = new Date(charge.timestamp);
+                        const timeStr = timestamp.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+                        const dateStr = timestamp.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
+                        
+                        // Detectar si es el primer elemento o cambio de fecha
+                        let showDaySeparator = idx === 0;
+                        if (idx > 0) {
+                          const prevTimestamp = new Date(chargeHistory[idx - 1].timestamp);
+                          const currentDate = new Date(timestamp).toLocaleDateString('es-ES');
+                          const prevDate = new Date(prevTimestamp).toLocaleDateString('es-ES');
+                          showDaySeparator = currentDate !== prevDate;
+                        }
+                        
+                        // Formato duracion: solo minutos o horas:minutos
+                        const mins = charge.durationMinutes || 0;
+                        const durationStr = mins >= 60 
+                          ? `${Math.floor(mins / 60)}h ${mins % 60}m` 
+                          : `${mins}m`;
+                        
+                        // Color de fondo segun estado
+                        let bgColor = 'bg-slate-700'; // Gris - en progreso
+                        if (charge.isCompleted) {
+                          bgColor = charge.isOverLimit ? 'bg-red-900/70' : 'bg-green-900/50';
+                        }
+                        
+                        return (
+                          <div key={idx}>
+                            {/* Línea de fin de día anterior si hay cambio de fecha */}
+                            {showDaySeparator && idx > 0 && (
+                              <div className="bg-slate-200 px-3 py-3 flex items-center justify-between border-b-2 border-slate-400">
+                                <div className="flex-1">
+                                  <div className="font-bold text-slate-900 text-sm mb-2">
+                                    RESUMEN DEL DÍA ANTERIOR - 23:59 HORAS
+                                  </div>
+                                  <div className="flex gap-8 text-sm text-slate-800">
+                                    <div className="flex gap-2">
+                                      <span className="font-semibold">Cargas:</span>
+                                      <span className="text-green-600 font-bold">12</span>
+                                    </div>
+                                    <div className="flex gap-2">
+                                      <span className="font-semibold">Ocupación:</span>
+                                      <span className="text-blue-600 font-bold">68%</span>
+                                    </div>
+                                    <div className="flex gap-2">
+                                      <span className="font-semibold">Sancionables:</span>
+                                      <span className="text-red-600 font-bold">3</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                            
+                            {/* Línea de carga normal */}
+                            <div className={`${bgColor} px-3 py-2 flex items-start gap-2 border-b border-slate-600 last:border-b-0`}>
+                              <span className="text-2xl mt-1">{getCarIcon(charge.connector_id, idx)}</span>
+                              <div className="flex-1">
+                                {/* Primera línea: fecha, hora, ID */}
+                                <div className="font-mono text-sm text-slate-300 flex gap-3 mb-1">
+                                  <span className="text-slate-400">{dateStr} {timeStr}</span>
+                                  <span className="text-blue-300 font-bold">ID: {charge.connector_id}</span>
+                                </div>
+                                {/* Segunda línea: ubicación y tiempo */}
+                                <div className="font-mono text-sm flex gap-3 items-center">
+                                  <span className="text-slate-300">{charge.station_name}</span>
+                                  <span className={
+                                    charge.isOverLimit 
+                                      ? 'text-red-400 font-bold' 
+                                      : 'text-green-400 font-bold'
+                                  }>
+                                    {durationStr}
+                                  </span>
+                                </div>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      );
-                    })
+                        );
+                      }))
                   ) : (
                     <div className="bg-slate-800 p-4 text-slate-400 text-center">
                       Sin cargas registradas
