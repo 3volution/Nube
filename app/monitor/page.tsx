@@ -190,29 +190,44 @@ export default function MonitorPage() {
       return;
     }
     
+    // Definir rangos de hoy: desde 00:00 hasta 23:59:59
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
     let totalOccupiedTime = 0;
     let todaySanctionableCount = 0;
+    let chargesCountedToday = 0;
     
     chargeHistory.forEach(charge => {
       const chargeTime = new Date(charge.timestamp);
-      if (chargeTime >= today) {
-        // Sumar duración solo si es una carga completada hoy
-        if (charge.durationMinutes) {
+      // Solo contar si la carga es HOY (>= hoy 00:00 y < mañana 00:00)
+      if (chargeTime >= today && chargeTime < tomorrow) {
+        chargesCountedToday++;
+        
+        // Sumar duración solo si es una carga completada
+        if (charge.durationMinutes && charge.durationMinutes > 0) {
           totalOccupiedTime += charge.durationMinutes;
+          console.log("[v0] Carga HOY:", charge.connector_id, "duración:", charge.durationMinutes, "minutos");
         }
-        // Contar como sancionable si excedió 2 horas y fue hoy
+        
+        // Contar como sancionable si excedió 2 horas
         if (charge.isOverLimit) {
           todaySanctionableCount++;
+          console.log("[v0] Sancionable HOY:", charge.connector_id, "duración:", charge.durationMinutes);
         }
       }
     });
     
+    console.log("[v0] HOY - Cargas contadas:", chargesCountedToday, "Tiempo total:", totalOccupiedTime, "Sancionables:", todaySanctionableCount);
+    
     // Calcular porcentaje: máximo 17280 minutos al día
     const MAX_DAILY_MINUTES = 17280;
     const occupancyPercent = Math.min(100, Math.round((totalOccupiedTime / MAX_DAILY_MINUTES) * 100));
+    
+    console.log("[v0] Porcentaje ocupación:", occupancyPercent, "% (", totalOccupiedTime, "/", MAX_DAILY_MINUTES, ")");
     
     setTodayOccupancy(occupancyPercent);
     setTodaySanctionable(todaySanctionableCount);
