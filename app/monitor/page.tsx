@@ -13,9 +13,28 @@ export default function MonitorPage() {
   const [occupancyPerStation, setOccupancyPerStation] = useState({}); // Porcentaje ocupación por estación
   const [globalOccupancy, setGlobalOccupancy] = useState(0); // Porcentaje ocupación global
   const [sanctionableCharges, setSanctionableCharges] = useState(0); // Cargas > 2 horas EN TIEMPO REAL
-  const [todayCharges, setTodayCharges] = useState(0); // Total cargas HOY desde 00:00
-  const [todayOccupancy, setTodayOccupancy] = useState(0); // Ocupación promedio HOY
-  const [todaySanctionable, setTodaySanctionable] = useState(0); // Total sancionables HOY
+  const [todayCharges, setTodayCharges] = useState(() => {
+    // Intentar cargar valor anterior de localStorage
+    if (typeof window !== 'undefined') {
+      const cached = localStorage.getItem('todayCharges');
+      return cached ? parseInt(cached) : 0;
+    }
+    return 0;
+  }); // Total cargas HOY desde 00:00
+  const [todayOccupancy, setTodayOccupancy] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const cached = localStorage.getItem('todayOccupancy');
+      return cached ? parseInt(cached) : 0;
+    }
+    return 0;
+  }); // Ocupación promedio HOY
+  const [todaySanctionable, setTodaySanctionable] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const cached = localStorage.getItem('todaySanctionable');
+      return cached ? parseInt(cached) : 0;
+    }
+    return 0;
+  }); // Total sancionables HOY
   const [currentlyOccupied, setCurrentlyOccupied] = useState(0); // Conectores OCUPADOS en este momento
   const [loading, setLoading] = useState(true);
   const [selectedTab, setSelectedTab] = useState('estaciones');
@@ -85,22 +104,28 @@ export default function MonitorPage() {
       
       // Crear historial solo con cambios OCUPADO→FREE completados
       const chargesWithStatus: Array<typeof stateChanges[0] & { isCompleted: boolean; durationMinutes: number; isOverLimit: boolean; startTimestamp: string }> = [];
-      const processedPairs = new Set<string>(); // Para evitar duplicados (OCCUPIED-FREE pair)
+      const processedEventIndices = new Set<string>(); // Para evitar procesar el mismo evento dos veces
       
       Object.values(changesByConnector).forEach(connectorChanges => {
         // Recorrer los eventos en orden cronologico
         for (let i = 0; i < connectorChanges.length; i++) {
           const change = connectorChanges[i];
           
+          // Si ya procesamos este evento, saltar
+          const eventKey = `${change.connector_id}-${change.timestamp}-${change.new_status}`;
+          if (processedEventIndices.has(eventKey)) continue;
+          
           // Si es OCUPADO, es inicio de carga
           if (change.new_status !== 'FREE' && change.new_status !== 'AVAILABLE') {
             const startTime = new Date(change.timestamp).getTime();
             let endEvent = null;
+            let endEventIndex = -1;
             
             // Buscar si hay un FREE posterior
             for (let j = i + 1; j < connectorChanges.length; j++) {
               if (connectorChanges[j].new_status === 'FREE' || connectorChanges[j].new_status === 'AVAILABLE') {
                 endEvent = connectorChanges[j];
+                endEventIndex = j;
                 break;
               }
             }
@@ -110,12 +135,9 @@ export default function MonitorPage() {
               const endTime = new Date(endEvent.timestamp).getTime();
               const durationMinutes = Math.floor((endTime - startTime) / 60000);
               
-              // Crear ID único para este par OCCUPIED-FREE
-              const pairId = `${change.connector_id}-${change.timestamp}-${endEvent.timestamp}`;
-              
-              // Evitar duplicados
-              if (processedPairs.has(pairId)) continue;
-              processedPairs.add(pairId);
+              // Marcar ambos eventos como procesados para no reutilizarlos
+              processedEventIndices.add(eventKey);
+              processedEventIndices.add(`${change.connector_id}-${endEvent.timestamp}-${endEvent.new_status}`);
               
               // Usar el evento FREE como base pero guardar el timestamp de inicio
               chargesWithStatus.push({
@@ -130,8 +152,25 @@ export default function MonitorPage() {
         }
       });
       
+      // Deduplicar cargas que tengan el mismo conector, fecha y hora pero distinta duración
+      // (mantener solo la primera de cada grupo)
+      const uniqueCharges = [];
+      const chargeKeys = new Set<string>();
+      
+      chargesWithStatus.forEach(charge => {
+        // Crear clave con conector ID, fecha y hora (sin minutos de duración)
+        const chargeDate = new Date(charge.timestamp);
+        const chargeKey = `${charge.connector_id}-${chargeDate.getFullYear()}-${chargeDate.getMonth()}-${chargeDate.getDate()}-${chargeDate.getHours()}`;
+        
+        // Si aún no hemos visto esta carga, agregarla
+        if (!chargeKeys.has(chargeKey)) {
+          chargeKeys.add(chargeKey);
+          uniqueCharges.push(charge);
+        }
+      });
+      
       // Ordenar por fecha descendente, filtrar solo completadas y limitar a 200
-      const sortedCharges = chargesWithStatus
+      const sortedCharges = uniqueCharges
         .filter(charge => charge.isCompleted) // Solo mostrar cargas completadas
         .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
         .slice(0, 200); // Aumentado de 50 a 200
@@ -173,38 +212,68 @@ export default function MonitorPage() {
       setDailyChargesPerStation(chargesPerStation);
       setTodayCharges(totalCharges);
       
-      // Calcular porcentaje de ocupación HOY como tiempo total ocupado / 17280 minutos máximos del día
-      let totalOccupiedTime = 0;
-      
-      chargeHistory.forEach(charge => {
-        const chargeTime = new Date(charge.timestamp);
-        if (chargeTime >= today && charge.durationMinutes) {
-          totalOccupiedTime += charge.durationMinutes;
-        }
-      });
-      
-      // Máximo de minutos disponibles en un día: 24 horas * 60 minutos * 12 conectores = 17280
-      const MAX_DAILY_MINUTES = 24 * 60 * 12; // 17280 minutos
-      
-      // Porcentaje: tiempo ocupado / 17280 minutos máximos
-      const occupancyPercent = Math.round((totalOccupiedTime / MAX_DAILY_MINUTES) * 100);
-      
-      setTodayOccupancy(occupancyPercent);
-      
-      // Contar sancionables acumuladas HOY (cargas completadas que excedieron 2 horas)
-      // Usa isOverLimit que ya está calculado correctamente en el historial
-      const todaySanctionable = chargeHistory.filter(charge => {
-        const chargeTime = new Date(charge.timestamp);
-        return chargeTime >= today && charge.isOverLimit;
-      }).length;
-      
-      setTodaySanctionable(todaySanctionable);
+      // Guardar en localStorage
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('todayCharges', totalCharges.toString());
+      }
       
       // Calcular ocupancia por estación desde las 00:00
       const occupancyByStation = {};
       setOccupancyPerStation(occupancyByStation);
     }
   }, [stateChanges]);
+
+  // Recalcular estadísticas HOY cuando cambie chargeHistory
+  useEffect(() => {
+    if (chargeHistory.length === 0) {
+      setTodayOccupancy(0);
+      setTodaySanctionable(0);
+      return;
+    }
+    
+    // Definir rangos de hoy: desde 00:00 hasta 23:59:59
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    let totalOccupiedTime = 0;
+    let todaySanctionableCount = 0;
+    let chargesCountedToday = 0;
+    
+    chargeHistory.forEach(charge => {
+      const chargeTime = new Date(charge.timestamp);
+      // Solo contar si la carga es HOY (>= hoy 00:00 y < mañana 00:00)
+      if (chargeTime >= today && chargeTime < tomorrow) {
+        chargesCountedToday++;
+        
+        // Sumar duración solo si es una carga completada
+        if (charge.durationMinutes && charge.durationMinutes > 0) {
+          totalOccupiedTime += charge.durationMinutes;
+        }
+        
+        // Contar como sancionable si excedió 2 horas
+        if (charge.isOverLimit) {
+          todaySanctionableCount++;
+        }
+      }
+    });
+    
+    const MAX_DAILY_MINUTES = 17280;
+    
+    // Calcular porcentaje: máximo 17280 minutos al día
+    const occupancyPercent = Math.min(100, Math.round((totalOccupiedTime / MAX_DAILY_MINUTES) * 100));
+    
+    setTodayOccupancy(occupancyPercent);
+    setTodaySanctionable(todaySanctionableCount);
+    
+    // Guardar en localStorage para persistencia entre recargas
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('todayOccupancy', occupancyPercent.toString());
+      localStorage.setItem('todaySanctionable', todaySanctionableCount.toString());
+    }
+  }, [chargeHistory]);
 
   useEffect(() => {
     fetchData();
@@ -381,7 +450,8 @@ export default function MonitorPage() {
           <h1 className="text-4xl font-bold text-white mb-2">HackerCharger Mérida <span className="text-lg text-slate-400">{APP_VERSION}</span></h1>
           <p className="text-slate-300">Sistema de monitoreo de cargadores eléctricos de vehículos en tiempo real</p>
           
-          {/* Daily Charge Counter - Two lines: HOY vs AHORA MISMO */}
+          {/* Daily Charge Counter - Two lines: HOY vs AHORA MISMO - Only show if we have charge data */}
+          {chargeHistory.length > 0 ? (
           <div className="mt-4 space-y-3">
             {/* Línea 1: HOY */}
             <div className="flex items-center gap-6 text-lg flex-wrap bg-slate-800 bg-opacity-50 p-3 rounded">
@@ -417,6 +487,7 @@ export default function MonitorPage() {
               </div>
             </div>
           </div>
+          ) : null}
         </div>
 
         {/* Error Alert */}
