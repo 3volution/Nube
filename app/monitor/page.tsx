@@ -690,7 +690,8 @@ export default function MonitorPage() {
                             </div>
                           </div>
                         );
-                      }))
+                      })
+                    </div>
                   ) : (
                     <div className="bg-slate-800 p-4 text-slate-400 text-center">
                       Sin cargas registradas
