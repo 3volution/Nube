@@ -9,6 +9,7 @@ export default function MonitorPage() {
   const [logs, setLogs] = useState([]);
   const [chargeHistory, setChargeHistory] = useState([]); // Historial de cargas completadas
   const [dailyChargesPerStation, setDailyChargesPerStation] = useState({}); // Cargas por estación hoy
+  const [sanctionablePerStation, setSanctionablePerStation] = useState({}); // Sancionables por estación hoy
   const [totalDailyCharges, setTotalDailyCharges] = useState(0); // Total cargas hoy
   const [occupancyPerStation, setOccupancyPerStation] = useState({}); // Porcentaje ocupación por estación
   const [globalOccupancy, setGlobalOccupancy] = useState(0); // Porcentaje ocupación global
@@ -42,51 +43,39 @@ export default function MonitorPage() {
   const [error, setError] = useState(null);
   const [currentTime, setCurrentTime] = useState(new Date());
 
-  // Orden personalizado de estaciones
-  const STATION_ORDER = {
-    828537: 0, // Estacion Bus
-    828524: 1, // Avda. Roma
-    828534: 2, // Calle Almendralejo (1)
-    828535: 3, // Calle Almendralejo (2)
-    828523: 4, // Plaza Xirgu
-    828538: 5  // Avda. del Prado
+  // Mapeo de station_id a nombre de estacion (para hacer match robusto)
+  const STATION_ID_TO_NAME = {
+    '828537': 'Estacion Bus',
+    '828524': 'Avda. Roma',
+    '828534': 'Calle Almendralejo',
+    '828535': 'Calle Almendralejo',
+    '828523': 'Plaza Xirgu',
+    '828538': 'Avda. del Prado'
   };
 
+  // Función para obtener datos
   const fetchData = async () => {
     try {
-      const [stationsRes, changesRes, logsRes] = await Promise.all([
-        fetch('/api/stations'),
+      const [stateChangesRes, stationsRes, chargesRes] = await Promise.all([
         fetch('/api/state-changes?limit=200'),
+        fetch('/api/stations'),
         fetch('/api/logs?limit=100')
       ]);
 
-      if (stationsRes.ok) {
-        const stationsData = await stationsRes.json();
-        const sorted = (stationsData.stations || []).sort((a, b) => 
-          (STATION_ORDER[a.id] ?? 999) - (STATION_ORDER[b.id] ?? 999)
-        );
-        setStations(sorted);
-      }
+      const stateChangesData = await stateChangesRes.json();
+      const stationsData = await stationsRes.json();
+      const chargesData = await chargesRes.json();
 
-      if (changesRes.ok) {
-        const changesData = await changesRes.json();
-        setStateChanges(changesData.changes || []);
-      }
-
-      if (logsRes.ok) {
-        const logsData = await logsRes.json();
-        setLogs(logsData.logs || []);
-      }
-      setError(null);
+      setStateChanges(stateChangesData || []);
+      setStations(stationsData || []);
+      setLoading(false);
     } catch (err) {
       console.error('[v0] Error fetching data:', err);
-      setError(err.message);
-    } finally {
+      setError('Error al cargar datos');
       setLoading(false);
     }
   };
 
-  // Extraer historial de cargas con estado (en progreso / completada)
   useEffect(() => {
     if (stateChanges.length > 0) {
       // Ordenar cronologicamente
@@ -181,41 +170,10 @@ export default function MonitorPage() {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       
-      // Mapeo de station_id a nombre de estacion (para hacer match robusto)
-      const STATION_ID_TO_NAME = {
-        '828537': 'Estacion Bus',
-        '828524': 'Avda. Roma',
-        '828534': 'Calle Almendralejo', // Mapeamos ambas a "Calle Almendralejo" combinado
-        '828535': 'Calle Almendralejo', // Mapeamos ambas a "Calle Almendralejo" combinado
-        '828523': 'Plaza Xirgu',
-        '828538': 'Avda. del Prado'
-      };
-      
       const chargesPerStation = {};
       
-      // Contar cargas desde las 00:00 usando el historial completado
-      chargeHistory.forEach(charge => {
-        const chargeTime = new Date(charge.timestamp);
-        if (chargeTime >= today) {
-          // Usar station_id para hacer match, o station_name como fallback
-          const stationName = STATION_ID_TO_NAME[charge.station_id] || charge.station_name;
-          chargesPerStation[stationName] = (chargesPerStation[stationName] || 0) + 1;
-        }
-      });
-      
-      // Total de cargas HOY es simplemente el número de líneas en el historial desde 00:00
-      const totalCharges = chargeHistory.filter(charge => {
-        const chargeTime = new Date(charge.timestamp);
-        return chargeTime >= today;
-      }).length;
-      
-      setDailyChargesPerStation(chargesPerStation);
-      setTodayCharges(totalCharges);
-      
-      // Guardar en localStorage
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('todayCharges', totalCharges.toString());
-      }
+      // Nota: El cálculo de cargas HOY y sancionables por estación se hace en el segundo useEffect
+      // que depende de chargeHistory para asegurar que los datos están listos
       
       // Calcular ocupancia por estación desde las 00:00
       const occupancyByStation = {};
@@ -241,12 +199,18 @@ export default function MonitorPage() {
     let totalOccupiedTime = 0;
     let todaySanctionableCount = 0;
     let chargesCountedToday = 0;
+    const sanctionableByStation = {};
+    const chargesByStation = {};
     
     chargeHistory.forEach(charge => {
       const chargeTime = new Date(charge.timestamp);
       // Solo contar si la carga es HOY (>= hoy 00:00 y < mañana 00:00)
       if (chargeTime >= today && chargeTime < tomorrow) {
         chargesCountedToday++;
+        
+        // Contar cargas por estación
+        const stationName = STATION_ID_TO_NAME[charge.station_id] || charge.station_name;
+        chargesByStation[stationName] = (chargesByStation[stationName] || 0) + 1;
         
         // Sumar duración solo si es una carga completada
         if (charge.durationMinutes && charge.durationMinutes > 0) {
@@ -256,6 +220,7 @@ export default function MonitorPage() {
         // Contar como sancionable si excedió 2 horas
         if (charge.isOverLimit) {
           todaySanctionableCount++;
+          sanctionableByStation[stationName] = (sanctionableByStation[stationName] || 0) + 1;
         }
       }
     });
@@ -267,11 +232,15 @@ export default function MonitorPage() {
     
     setTodayOccupancy(occupancyPercent);
     setTodaySanctionable(todaySanctionableCount);
+    setTodayCharges(chargesCountedToday);
+    setDailyChargesPerStation(chargesByStation);
+    setSanctionablePerStation(sanctionableByStation);
     
     // Guardar en localStorage para persistencia entre recargas
     if (typeof window !== 'undefined') {
       localStorage.setItem('todayOccupancy', occupancyPercent.toString());
       localStorage.setItem('todaySanctionable', todaySanctionableCount.toString());
+      localStorage.setItem('todayCharges', chargesCountedToday.toString());
     }
   }, [chargeHistory]);
 
@@ -523,9 +492,9 @@ export default function MonitorPage() {
                       </div>
                       <div className="text-right">
                         <div className="flex items-center gap-3 justify-end">
-                          <div className="flex items-center gap-1 text-purple-400 font-bold text-sm">
-                            <span>📊</span>
-                            <span>{occupancyPerStation[station.name] || 0}%</span>
+                          <div className="flex items-center gap-1 text-red-500 font-bold text-sm">
+                            <span>⚠️</span>
+                            <span>{sanctionablePerStation[station.name] || 0}</span>
                           </div>
                           <div className="flex items-center gap-1 text-yellow-400 font-bold">
                             <span className="text-lg">🔌🚗</span>
