@@ -186,8 +186,8 @@ export default function MonitorPage() {
       // Máximo de minutos disponibles en un día: 24 horas * 60 minutos * 12 conectores = 17280
       const MAX_DAILY_MINUTES = 24 * 60 * 12; // 17280 minutos
       
-      // Porcentaje: tiempo ocupado / 17280 minutos máximos
-      const occupancyPercent = Math.round((totalOccupiedTime / MAX_DAILY_MINUTES) * 100);
+      // Porcentaje: tiempo ocupado / 17280 minutos máximos (capped at 100%)
+      const occupancyPercent = Math.min(100, Math.round((totalOccupiedTime / MAX_DAILY_MINUTES) * 100));
       
       setTodayOccupancy(occupancyPercent);
       
@@ -381,7 +381,8 @@ export default function MonitorPage() {
           <h1 className="text-4xl font-bold text-white mb-2">HackerCharger Mérida <span className="text-lg text-slate-400">{APP_VERSION}</span></h1>
           <p className="text-slate-300">Sistema de monitoreo de cargadores eléctricos de vehículos en tiempo real</p>
           
-          {/* Daily Charge Counter - Two lines: HOY vs AHORA MISMO */}
+          {/* Daily Charge Counter - Two lines: HOY vs AHORA MISMO - Only show if we have charge data */}
+          {chargeHistory.length > 0 ? (
           <div className="mt-4 space-y-3">
             {/* Línea 1: HOY */}
             <div className="flex items-center gap-6 text-lg flex-wrap bg-slate-800 bg-opacity-50 p-3 rounded">
@@ -417,6 +418,7 @@ export default function MonitorPage() {
               </div>
             </div>
           </div>
+          ) : null}
         </div>
 
         {/* Error Alert */}
