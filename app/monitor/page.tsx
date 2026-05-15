@@ -12,6 +12,7 @@ export default function MonitorPage() {
   const [totalDailyCharges, setTotalDailyCharges] = useState(0); // Total cargas hoy
   const [occupancyPerStation, setOccupancyPerStation] = useState({}); // Porcentaje ocupación por estación
   const [globalOccupancy, setGlobalOccupancy] = useState(0); // Porcentaje ocupación global
+  const [sanctionableCharges, setSanctionableCharges] = useState(0); // Cargas > 2 horas
   const [loading, setLoading] = useState(true);
   const [selectedTab, setSelectedTab] = useState('estaciones');
   const [autoRefresh, setAutoRefresh] = useState(true);
@@ -137,6 +138,10 @@ export default function MonitorPage() {
         .slice(0, 200); // Aumentado de 50 a 200
       
       setChargeHistory(sortedCharges);
+      
+      // Calcular cargas sancionables (> 2 horas)
+      const sanctionable = sortedCharges.filter(charge => charge.isOverLimit).length;
+      setSanctionableCharges(sanctionable);
       
       // Calcular cargas del dia actual (desde las 00:00)
       const today = new Date();
@@ -312,6 +317,13 @@ export default function MonitorPage() {
     return icons[hash % icons.length];
   };
 
+  // Función para detectar si un conector tiene cargas sancionables activas
+  const hasOvertimeCharges = (connectorId: string) => {
+    return chargeHistory.some(charge => 
+      charge.connector_id === connectorId && charge.isOverLimit
+    );
+  };
+
   // Agrupar estaciones de Calle Almendralejo con IDs específicas
   const displayStations = stations.reduce((acc, station) => {
     if (station.id === 828534) {
@@ -355,11 +367,11 @@ export default function MonitorPage() {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-4xl font-bold text-white mb-2">GuardianCharger Mérida <span className="text-lg text-slate-400">{APP_VERSION}</span></h1>
+          <h1 className="text-4xl font-bold text-white mb-2">HackerCharger Mérida <span className="text-lg text-slate-400">{APP_VERSION}</span></h1>
           <p className="text-slate-300">Sistema de monitoreo de cargadores eléctricos de vehículos en tiempo real</p>
           
-          {/* Daily Charge Counter - Total + Occupancy */}
-          <div className="mt-4 flex items-center gap-6 text-lg">
+          {/* Daily Charge Counter - Total + Occupancy + Sancionables */}
+          <div className="mt-4 flex items-center gap-6 text-lg flex-wrap">
             <div className="flex items-center gap-2">
               <span className="text-2xl">🔌🚗</span>
               <span className="text-green-400 font-bold">Hoy: {totalDailyCharges} cargas</span>
@@ -367,6 +379,10 @@ export default function MonitorPage() {
             <div className="flex items-center gap-2">
               <span className="text-2xl">📊</span>
               <span className="text-blue-400 font-bold">Ocupación: {globalOccupancy}%</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-2xl">⚠️</span>
+              <span className="text-red-500 font-bold">Sancionables: {sanctionableCharges}</span>
             </div>
           </div>
         </div>
@@ -426,7 +442,19 @@ export default function MonitorPage() {
                         return (
                           <div key={idx} className="space-y-2">
                             <div
-                              className={`p-3 rounded-lg border-2 flex flex-col justify-center h-20 ${getStatusColor(connector.status)}`}
+                              className={`p-3 rounded-lg border-2 flex flex-col justify-center h-20 ${getStatusColor(connector.status)} ${
+                                hasOvertimeCharges(connector.visualRef || connector.id) 
+                                  ? 'animate-pulse border-red-500 shadow-lg shadow-red-500' 
+                                  : ''
+                              }`}
+                              style={
+                                hasOvertimeCharges(connector.visualRef || connector.id)
+                                  ? {
+                                      animation: 'pulse 0.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                                      boxShadow: '0 0 20px rgba(239, 68, 68, 0.8)'
+                                    }
+                                  : {}
+                              }
                             >
                               <div className="text-xs opacity-75 mb-1">
                                 ID: {connector.visualRef || connector.id}
