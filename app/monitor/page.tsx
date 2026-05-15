@@ -139,10 +139,6 @@ export default function MonitorPage() {
       
       setChargeHistory(sortedCharges);
       
-      // Calcular cargas sancionables (> 2 horas)
-      const sanctionable = sortedCharges.filter(charge => charge.isOverLimit).length;
-      setSanctionableCharges(sanctionable);
-      
       // Calcular cargas del dia actual (desde las 00:00)
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -241,10 +237,25 @@ export default function MonitorPage() {
   // Re-renderizar cada segundo para actualizar los tiempos dinámicamente (como en Scriptable)
   useEffect(() => {
     const timer = setInterval(() => {
+      // Calcular sancionables en tiempo real (conectores OCUPADO > 2 horas)
+      let sanctionable = 0;
+      stations.forEach(station => {
+        station.connectors?.forEach(connector => {
+          if (connector.status !== 'FREE' && connector.status !== 'AVAILABLE') {
+            const startTime = new Date(connector.status_changed_at).getTime();
+            const durationMinutes = Math.floor((Date.now() - startTime) / 60000);
+            if (durationMinutes > 120) {
+              sanctionable++;
+            }
+          }
+        });
+      });
+      setSanctionableCharges(sanctionable);
+      
       setStations(prev => [...prev]); // Forzar re-render sin cambiar data
     }, 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [stations]);
 
   // Reloj con segundero activo
   useEffect(() => {
@@ -317,11 +328,17 @@ export default function MonitorPage() {
     return icons[hash % icons.length];
   };
 
-  // Función para detectar si un conector tiene cargas sancionables activas
-  const hasOvertimeCharges = (connectorId: string) => {
-    return chargeHistory.some(charge => 
-      charge.connector_id === connectorId && charge.isOverLimit
-    );
+  // Función para detectar si un conector está OCUPADO y ha excedido 2 horas
+  const hasOvertimeCharges = (connector) => {
+    // Solo si el conector está OCUPADO actualmente
+    if (connector.status === 'FREE' || connector.status === 'AVAILABLE') return false;
+    
+    // Calcular tiempo desde que cambió de estado
+    const startTime = new Date(connector.status_changed_at).getTime();
+    const durationMinutes = Math.floor((Date.now() - startTime) / 60000);
+    
+    // Retornar true solo si excede 120 minutos
+    return durationMinutes > 120;
   };
 
   // Agrupar estaciones de Calle Almendralejo con IDs específicas
@@ -433,7 +450,16 @@ export default function MonitorPage() {
                     </div>
 
                     <div className="grid grid-cols-1 gap-3 max-h-96 overflow-y-auto pr-2">
-                      {station.connectors.map((connector, idx) => {
+                      {station.connectors
+                        .filter(connector => {
+                          // Excluir 003657 y 003658 de Calle Almendralejo (2) - ID 828535
+                          if (station.id === 828535) {
+                            const visualRef = connector.visualRef || connector.id;
+                            return !['003657', '003658'].includes(visualRef);
+                          }
+                          return true;
+                        })
+                        .map((connector, idx) => {
                         const statusChangedDate = connector.status_changed_at ? new Date(connector.status_changed_at) : null;
                         const now = new Date();
                         const diffSeconds = statusChangedDate ? Math.floor((now.getTime() - statusChangedDate.getTime()) / 1000) : null;
@@ -443,12 +469,12 @@ export default function MonitorPage() {
                           <div key={idx} className="space-y-2">
                             <div
                               className={`p-3 rounded-lg border-2 flex flex-col justify-center h-20 ${getStatusColor(connector.status)} ${
-                                hasOvertimeCharges(connector.visualRef || connector.id) 
+                                hasOvertimeCharges(connector) 
                                   ? 'animate-pulse border-red-500 shadow-lg shadow-red-500' 
                                   : ''
                               }`}
                               style={
-                                hasOvertimeCharges(connector.visualRef || connector.id)
+                                hasOvertimeCharges(connector)
                                   ? {
                                       animation: 'pulse 0.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
                                       boxShadow: '0 0 20px rgba(239, 68, 68, 0.8)'
@@ -469,7 +495,6 @@ export default function MonitorPage() {
                           </div>
                         );
                       })}
-                    </div>
                   </div>
                 ))}
               </div>
