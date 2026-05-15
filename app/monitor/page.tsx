@@ -133,12 +133,30 @@ export default function MonitorPage() {
         }
       });
       
+      // Deduplicar cargas que tengan el mismo conector, fecha y hora pero distinta duración
+      // (mantener solo la primera de cada grupo)
+      const uniqueCharges = [];
+      const chargeKeys = new Set<string>();
+      
+      chargesWithStatus.forEach(charge => {
+        // Crear clave con conector ID, fecha y hora (sin minutos de duración)
+        const chargeDate = new Date(charge.timestamp);
+        const chargeKey = `${charge.connector_id}-${chargeDate.getFullYear()}-${chargeDate.getMonth()}-${chargeDate.getDate()}-${chargeDate.getHours()}`;
+        
+        // Si aún no hemos visto esta carga, agregarla
+        if (!chargeKeys.has(chargeKey)) {
+          chargeKeys.add(chargeKey);
+          uniqueCharges.push(charge);
+        }
+      });
+      
       // Ordenar por fecha descendente, filtrar solo completadas y limitar a 200
-      const sortedCharges = chargesWithStatus
+      const sortedCharges = uniqueCharges
         .filter(charge => charge.isCompleted) // Solo mostrar cargas completadas
         .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
         .slice(0, 200); // Aumentado de 50 a 200
       
+      console.log("[v0] Cargas únicas después de deduplicación:", sortedCharges.length);
       setChargeHistory(sortedCharges);
       
       // Calcular cargas del dia actual (desde las 00:00)
@@ -210,24 +228,30 @@ export default function MonitorPage() {
         // Sumar duración solo si es una carga completada
         if (charge.durationMinutes && charge.durationMinutes > 0) {
           totalOccupiedTime += charge.durationMinutes;
-          console.log("[v0] Carga HOY:", charge.connector_id, "duración:", charge.durationMinutes, "minutos");
         }
         
         // Contar como sancionable si excedió 2 horas
         if (charge.isOverLimit) {
           todaySanctionableCount++;
-          console.log("[v0] Sancionable HOY:", charge.connector_id, "duración:", charge.durationMinutes);
         }
       }
     });
     
-    console.log("[v0] HOY - Cargas contadas:", chargesCountedToday, "Tiempo total:", totalOccupiedTime, "Sancionables:", todaySanctionableCount);
+    const MAX_DAILY_MINUTES = 17280;
+    
+    // Debuggear: mostrar todos los datos
+    console.log("[v0] === HOY - CÁLCULO DE PORCENTAJE ===");
+    console.log("[v0] Cargas en historial:", chargeHistory.length);
+    console.log("[v0] Cargas CONTADAS HOY:", chargesCountedToday);
+    console.log("[v0] Tiempo total ocupado HOY:", totalOccupiedTime, "minutos");
+    console.log("[v0] Máximo disponible:", MAX_DAILY_MINUTES, "minutos");
+    console.log("[v0] Cálculo:", totalOccupiedTime, "/", MAX_DAILY_MINUTES, "=", (totalOccupiedTime / MAX_DAILY_MINUTES * 100).toFixed(2) + "%");
     
     // Calcular porcentaje: máximo 17280 minutos al día
-    const MAX_DAILY_MINUTES = 17280;
     const occupancyPercent = Math.min(100, Math.round((totalOccupiedTime / MAX_DAILY_MINUTES) * 100));
     
-    console.log("[v0] Porcentaje ocupación:", occupancyPercent, "% (", totalOccupiedTime, "/", MAX_DAILY_MINUTES, ")");
+    console.log("[v0] Porcentaje final:", occupancyPercent + "%");
+    console.log("[v0] Sancionables HOY:", todaySanctionableCount);
     
     setTodayOccupancy(occupancyPercent);
     setTodaySanctionable(todaySanctionableCount);
