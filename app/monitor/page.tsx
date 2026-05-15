@@ -348,28 +348,19 @@ export default function MonitorPage() {
       const almendralejo1 = station;
       const almendralejo2 = stations.find(s => s.id === 828535);
       
-      // Conectores que pertenecen a Calle Almendralejo (4 IDs específicas)
+      // Conectores que pertenecen a Calle Almendralejo - SOLO estos 4 IDs
       const almendralejoCombined = [];
-      if (almendralejo1) almendralejoCombined.push(...almendralejo1.connectors);
-      if (almendralejo2) {
-        // Excluir 003657 y 003658 de Calle Almendralejo (2)
-        const filtered = almendralejo2.connectors.filter(c => {
-          const visualRef = c.visualRef || String(c.id);
-          return !['003657', '003658'].includes(visualRef);
+      const almendralejoCodes = ['003649', '003650', '003651', '003652'];
+      
+      // Buscar solo los conectores con estos IDs específicos en todas las estaciones
+      stations.forEach(station => {
+        station.connectors?.forEach(connector => {
+          const visualRef = connector.visualRef || String(connector.id);
+          if (almendralejoCodes.includes(visualRef)) {
+            almendralejoCombined.push(connector);
+          }
         });
-        almendralejoCombined.push(...filtered);
-      }
-      
-      // Buscar otros conectores de Calle Almendralejo por ID
-      const otherStationsConnectors = stations
-        .filter(s => s.id !== 828534 && s.id !== 828535)
-        .flatMap(s => 
-          s.connectors.filter(c => 
-            ['4543398', '4543399', '4543421', '4543422'].includes(String(c.id))
-          )
-        );
-      
-      almendralejoCombined.push(...otherStationsConnectors);
+      });
       
       if (almendralejoCombined.length > 0) {
         acc.push({
