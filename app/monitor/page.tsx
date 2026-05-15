@@ -153,77 +153,61 @@ export default function MonitorPage() {
       };
       
       const chargesPerStation = {};
-      let totalCharges = 0;
       
-      stateChanges.forEach(change => {
-        const changeTime = new Date(change.timestamp);
-        // Solo contar si es del dia actual Y si pasa a OCUPADO (coche empieza a cargar)
-        if (changeTime >= today && change.new_status !== 'FREE' && change.new_status !== 'AVAILABLE') {
+      // Contar cargas desde las 00:00 usando el historial completado
+      chargeHistory.forEach(charge => {
+        const chargeTime = new Date(charge.timestamp);
+        if (chargeTime >= today) {
           // Usar station_id para hacer match, o station_name como fallback
-          const stationName = STATION_ID_TO_NAME[change.station_id] || change.station_name;
+          const stationName = STATION_ID_TO_NAME[charge.station_id] || charge.station_name;
           chargesPerStation[stationName] = (chargesPerStation[stationName] || 0) + 1;
-          totalCharges++;
         }
       });
+      
+      // Total de cargas HOY es simplemente el número de líneas en el historial desde 00:00
+      const totalCharges = chargeHistory.filter(charge => {
+        const chargeTime = new Date(charge.timestamp);
+        return chargeTime >= today;
+      }).length;
       
       setDailyChargesPerStation(chargesPerStation);
-      setTotalDailyCharges(totalCharges);
+      setTodayCharges(totalCharges);
       
-      // Calcular porcentaje de ocupación por estación desde las 00:00
-      const occupancyByStation = {};
+      // Calcular porcentaje de ocupación HOY como tiempo total ocupado / tiempo total disponible
       let totalOccupiedTime = 0;
-      let totalTime = 0;
       
-      // Agrupar cambios por estación y conector
-      const changesByStationConnector = {};
-      stateChanges.forEach(change => {
-        const changeTime = new Date(change.timestamp);
-        if (changeTime >= today) {
-          const key = `${change.station_name}|${change.connector_id}`;
-          if (!changesByStationConnector[key]) {
-            changesByStationConnector[key] = [];
-          }
-          changesByStationConnector[key].push(change);
+      chargeHistory.forEach(charge => {
+        const chargeTime = new Date(charge.timestamp);
+        if (chargeTime >= today && charge.durationMinutes) {
+          totalOccupiedTime += charge.durationMinutes;
         }
       });
       
-      // Calcular tiempo por estado para cada conector
-      Object.entries(changesByStationConnector).forEach(([key, changes]) => {
-        const [stationName] = key.split('|');
-        const sortedChanges = changes.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-        
-        for (let i = 0; i < sortedChanges.length - 1; i++) {
-          const current = new Date(sortedChanges[i].timestamp);
-          const next = new Date(sortedChanges[i + 1].timestamp);
-          const duration = next - current;
-          
-          const isOccupied = sortedChanges[i].new_status !== 'FREE' && sortedChanges[i].new_status !== 'AVAILABLE';
-          
-          if (!occupancyByStation[stationName]) {
-            occupancyByStation[stationName] = { occupied: 0, free: 0 };
-          }
-          
-          if (isOccupied) {
-            occupancyByStation[stationName].occupied += duration;
-            totalOccupiedTime += duration;
-          } else {
-            occupancyByStation[stationName].free += duration;
-          }
-          totalTime += duration;
-        }
-      });
+      // Tiempo total disponible desde 00:00 hasta ahora (en minutos)
+      const now = new Date();
+      const totalMinutesAvailable = Math.floor((now.getTime() - today.getTime()) / 60000);
       
-      // Calcular porcentajes
-      const percentagesByStation = {};
-      Object.entries(occupancyByStation).forEach(([station, times]) => {
-        const total = times.occupied + times.free;
-        percentagesByStation[station] = total > 0 ? Math.round((times.occupied / total) * 100) : 0;
-      });
+      // Multiplicar por 12 conectores (tiempo si todos estuvieran disponibles)
+      const totalConnectorMinutes = totalMinutesAvailable * 12;
       
-      const globalOccupancyPercent = totalTime > 0 ? Math.round((totalOccupiedTime / totalTime) * 100) : 0;
+      // Porcentaje: tiempo ocupado / tiempo total disponible
+      const occupancyPercent = totalConnectorMinutes > 0 
+        ? Math.round((totalOccupiedTime / totalConnectorMinutes) * 100) 
+        : 0;
       
-      setOccupancyPerStation(percentagesByStation);
-      setGlobalOccupancy(globalOccupancyPercent);
+      setTodayOccupancy(occupancyPercent);
+      
+      // Contar sancionables acumuladas HOY (cargas > 2 horas)
+      const todaySanctionable = chargeHistory.filter(charge => {
+        const chargeTime = new Date(charge.timestamp);
+        return chargeTime >= today && charge.isOverLimit;
+      }).length;
+      
+      setTodaySanctionable(todaySanctionable);
+      
+      // Calcular ocupancia por estación desde las 00:00
+      const occupancyByStation = {};
+      setOccupancyPerStation(occupancyByStation);
     }
   }, [stateChanges]);
 
@@ -421,9 +405,9 @@ export default function MonitorPage() {
               </div>
             </div>
             
-            {/* Línea 2: AHORA MISMO */}
+            {/* Línea 2: AHORA */}
             <div className="flex items-center gap-6 text-lg flex-wrap bg-slate-800 bg-opacity-50 p-3 rounded">
-              <span className="font-bold text-cyan-400">AHORA MISMO:</span>
+              <span className="font-bold text-cyan-400">AHORA:</span>
               <div className="flex items-center gap-2">
                 <span className="text-2xl">⚡</span>
                 <span className="text-green-400 font-bold">{currentlyOccupied} cargando</span>
@@ -433,8 +417,8 @@ export default function MonitorPage() {
                 <span className="text-blue-400 font-bold">{globalOccupancy}% ({currentlyOccupied}/12)</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-2xl">🔴</span>
-                <span className="text-red-500 font-bold">{sanctionableCharges} excedidos</span>
+                <span className="text-2xl">⚠️</span>
+                <span className="text-red-500 font-bold animate-pulse">{sanctionableCharges}</span>
               </div>
             </div>
           </div>
@@ -514,7 +498,11 @@ export default function MonitorPage() {
                               </div>
                               <div className="flex flex-col gap-1">
                                 <div className="flex items-baseline gap-3">
-                                  <span className="text-xl sm:text-2xl font-bold">{connector.status_display}</span>
+                                  <span className="text-xl sm:text-2xl font-bold">
+                                    {connector.status === 'FREE' || connector.status === 'AVAILABLE' ? 'LIBRE' :
+                                     connector.status === 'OCCUPIED' ? 'OCUPADO' :
+                                     'FUERA DE SERVICIO'}
+                                  </span>
                                   <span className="text-sm sm:text-lg font-semibold">{formatTime(connector.status_changed_at)}</span>
                                 </div>
                               </div>
