@@ -47,10 +47,33 @@ export default function MonitorPage() {
   const STATION_ID_TO_NAME = {
     '828537': 'Estacion Bus',
     '828524': 'Avda. Roma',
-    '828534': 'Calle Almendralejo', // Mapeamos ambas a "Calle Almendralejo" combinado
-    '828535': 'Calle Almendralejo', // Mapeamos ambas a "Calle Almendralejo" combinado
+    '828534': 'Calle Almendralejo',
+    '828535': 'Calle Almendralejo',
     '828523': 'Plaza Xirgu',
     '828538': 'Avda. del Prado'
+  };
+
+  // Función para obtener datos
+  const fetchData = async () => {
+    try {
+      const [stateChangesRes, stationsRes, chargesRes] = await Promise.all([
+        fetch('/api/state-changes?limit=200'),
+        fetch('/api/stations'),
+        fetch('/api/logs?limit=100')
+      ]);
+
+      const stateChangesData = await stateChangesRes.json();
+      const stationsData = await stationsRes.json();
+      const chargesData = await chargesRes.json();
+
+      setStateChanges(stateChangesData || []);
+      setStations(stationsData || []);
+      setLoading(false);
+    } catch (err) {
+      console.error('[v0] Error fetching data:', err);
+      setError('Error al cargar datos');
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
