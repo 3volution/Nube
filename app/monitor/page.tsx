@@ -9,6 +9,7 @@ export default function MonitorPage() {
   const [logs, setLogs] = useState([]);
   const [chargeHistory, setChargeHistory] = useState([]); // Historial de cargas completadas
   const [dailyChargesPerStation, setDailyChargesPerStation] = useState({}); // Cargas por estación hoy
+  const [sanctionablePerStation, setSanctionablePerStation] = useState({}); // Sancionables por estación hoy
   const [totalDailyCharges, setTotalDailyCharges] = useState(0); // Total cargas hoy
   const [occupancyPerStation, setOccupancyPerStation] = useState({}); // Porcentaje ocupación por estación
   const [globalOccupancy, setGlobalOccupancy] = useState(0); // Porcentaje ocupación global
@@ -193,29 +194,7 @@ export default function MonitorPage() {
       
       const chargesPerStation = {};
       
-      // Contar cargas desde las 00:00 usando el historial completado
-      chargeHistory.forEach(charge => {
-        const chargeTime = new Date(charge.timestamp);
-        if (chargeTime >= today) {
-          // Usar station_id para hacer match, o station_name como fallback
-          const stationName = STATION_ID_TO_NAME[charge.station_id] || charge.station_name;
-          chargesPerStation[stationName] = (chargesPerStation[stationName] || 0) + 1;
-        }
-      });
-      
-      // Total de cargas HOY es simplemente el número de líneas en el historial desde 00:00
-      const totalCharges = chargeHistory.filter(charge => {
-        const chargeTime = new Date(charge.timestamp);
-        return chargeTime >= today;
-      }).length;
-      
-      setDailyChargesPerStation(chargesPerStation);
-      setTodayCharges(totalCharges);
-      
-      // Guardar en localStorage
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('todayCharges', totalCharges.toString());
-      }
+      // Nota: El cálculo de todayCharges ahora se hace en el useEffect que depende de chargeHistory
       
       // Calcular ocupancia por estación desde las 00:00
       const occupancyByStation = {};
@@ -241,12 +220,26 @@ export default function MonitorPage() {
     let totalOccupiedTime = 0;
     let todaySanctionableCount = 0;
     let chargesCountedToday = 0;
+    const chargesByStation = {};
+    const sanctionableByStation = {};
     
     chargeHistory.forEach(charge => {
       const chargeTime = new Date(charge.timestamp);
       // Solo contar si la carga es HOY (>= hoy 00:00 y < mañana 00:00)
       if (chargeTime >= today && chargeTime < tomorrow) {
         chargesCountedToday++;
+        
+        // Mapeo para contar por estación
+        const STATION_ID_TO_NAME = {
+          '828537': 'Estacion Bus',
+          '828524': 'Avda. Roma',
+          '828534': 'Calle Almendralejo',
+          '828535': 'Calle Almendralejo',
+          '828523': 'Plaza Xirgu',
+          '828538': 'Avda. del Prado'
+        };
+        const stationName = STATION_ID_TO_NAME[charge.station_id] || charge.station_name;
+        chargesByStation[stationName] = (chargesByStation[stationName] || 0) + 1;
         
         // Sumar duración solo si es una carga completada
         if (charge.durationMinutes && charge.durationMinutes > 0) {
@@ -256,6 +249,7 @@ export default function MonitorPage() {
         // Contar como sancionable si excedió 2 horas
         if (charge.isOverLimit) {
           todaySanctionableCount++;
+          sanctionableByStation[stationName] = (sanctionableByStation[stationName] || 0) + 1;
         }
       }
     });
@@ -267,11 +261,15 @@ export default function MonitorPage() {
     
     setTodayOccupancy(occupancyPercent);
     setTodaySanctionable(todaySanctionableCount);
+    setTodayCharges(chargesCountedToday);
+    setDailyChargesPerStation(chargesByStation);
+    setSanctionablePerStation(sanctionableByStation);
     
     // Guardar en localStorage para persistencia entre recargas
     if (typeof window !== 'undefined') {
       localStorage.setItem('todayOccupancy', occupancyPercent.toString());
       localStorage.setItem('todaySanctionable', todaySanctionableCount.toString());
+      localStorage.setItem('todayCharges', chargesCountedToday.toString());
     }
   }, [chargeHistory]);
 
@@ -523,9 +521,9 @@ export default function MonitorPage() {
                       </div>
                       <div className="text-right">
                         <div className="flex items-center gap-3 justify-end">
-                          <div className="flex items-center gap-1 text-purple-400 font-bold text-sm">
-                            <span>📊</span>
-                            <span>{occupancyPerStation[station.name] || 0}%</span>
+                          <div className="flex items-center gap-1 text-red-500 font-bold text-sm">
+                            <span>⚠️</span>
+                            <span>{sanctionablePerStation[station.name] || 0}</span>
                           </div>
                           <div className="flex items-center gap-1 text-yellow-400 font-bold">
                             <span className="text-lg">🔌🚗</span>
