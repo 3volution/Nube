@@ -13,9 +13,28 @@ export default function MonitorPage() {
   const [occupancyPerStation, setOccupancyPerStation] = useState({}); // Porcentaje ocupación por estación
   const [globalOccupancy, setGlobalOccupancy] = useState(0); // Porcentaje ocupación global
   const [sanctionableCharges, setSanctionableCharges] = useState(0); // Cargas > 2 horas EN TIEMPO REAL
-  const [todayCharges, setTodayCharges] = useState(0); // Total cargas HOY desde 00:00
-  const [todayOccupancy, setTodayOccupancy] = useState(0); // Ocupación promedio HOY
-  const [todaySanctionable, setTodaySanctionable] = useState(0); // Total sancionables HOY
+  const [todayCharges, setTodayCharges] = useState(() => {
+    // Intentar cargar valor anterior de localStorage
+    if (typeof window !== 'undefined') {
+      const cached = localStorage.getItem('todayCharges');
+      return cached ? parseInt(cached) : 0;
+    }
+    return 0;
+  }); // Total cargas HOY desde 00:00
+  const [todayOccupancy, setTodayOccupancy] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const cached = localStorage.getItem('todayOccupancy');
+      return cached ? parseInt(cached) : 0;
+    }
+    return 0;
+  }); // Ocupación promedio HOY
+  const [todaySanctionable, setTodaySanctionable] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const cached = localStorage.getItem('todaySanctionable');
+      return cached ? parseInt(cached) : 0;
+    }
+    return 0;
+  }); // Total sancionables HOY
   const [currentlyOccupied, setCurrentlyOccupied] = useState(0); // Conectores OCUPADOS en este momento
   const [loading, setLoading] = useState(true);
   const [selectedTab, setSelectedTab] = useState('estaciones');
@@ -156,7 +175,6 @@ export default function MonitorPage() {
         .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
         .slice(0, 200); // Aumentado de 50 a 200
       
-      console.log("[v0] Cargas únicas después de deduplicación:", sortedCharges.length);
       setChargeHistory(sortedCharges);
       
       // Calcular cargas del dia actual (desde las 00:00)
@@ -193,6 +211,11 @@ export default function MonitorPage() {
       
       setDailyChargesPerStation(chargesPerStation);
       setTodayCharges(totalCharges);
+      
+      // Guardar en localStorage
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('todayCharges', totalCharges.toString());
+      }
       
       // Calcular ocupancia por estación desde las 00:00
       const occupancyByStation = {};
@@ -239,22 +262,17 @@ export default function MonitorPage() {
     
     const MAX_DAILY_MINUTES = 17280;
     
-    // Debuggear: mostrar todos los datos
-    console.log("[v0] === HOY - CÁLCULO DE PORCENTAJE ===");
-    console.log("[v0] Cargas en historial:", chargeHistory.length);
-    console.log("[v0] Cargas CONTADAS HOY:", chargesCountedToday);
-    console.log("[v0] Tiempo total ocupado HOY:", totalOccupiedTime, "minutos");
-    console.log("[v0] Máximo disponible:", MAX_DAILY_MINUTES, "minutos");
-    console.log("[v0] Cálculo:", totalOccupiedTime, "/", MAX_DAILY_MINUTES, "=", (totalOccupiedTime / MAX_DAILY_MINUTES * 100).toFixed(2) + "%");
-    
     // Calcular porcentaje: máximo 17280 minutos al día
     const occupancyPercent = Math.min(100, Math.round((totalOccupiedTime / MAX_DAILY_MINUTES) * 100));
     
-    console.log("[v0] Porcentaje final:", occupancyPercent + "%");
-    console.log("[v0] Sancionables HOY:", todaySanctionableCount);
-    
     setTodayOccupancy(occupancyPercent);
     setTodaySanctionable(todaySanctionableCount);
+    
+    // Guardar en localStorage para persistencia entre recargas
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('todayOccupancy', occupancyPercent.toString());
+      localStorage.setItem('todaySanctionable', todaySanctionableCount.toString());
+    }
   }, [chargeHistory]);
 
   useEffect(() => {
