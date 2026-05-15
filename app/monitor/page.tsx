@@ -85,22 +85,28 @@ export default function MonitorPage() {
       
       // Crear historial solo con cambios OCUPADO→FREE completados
       const chargesWithStatus: Array<typeof stateChanges[0] & { isCompleted: boolean; durationMinutes: number; isOverLimit: boolean; startTimestamp: string }> = [];
-      const processedPairs = new Set<string>(); // Para evitar duplicados (OCCUPIED-FREE pair)
+      const processedEventIndices = new Set<string>(); // Para evitar procesar el mismo evento dos veces
       
       Object.values(changesByConnector).forEach(connectorChanges => {
         // Recorrer los eventos en orden cronologico
         for (let i = 0; i < connectorChanges.length; i++) {
           const change = connectorChanges[i];
           
+          // Si ya procesamos este evento, saltar
+          const eventKey = `${change.connector_id}-${change.timestamp}-${change.new_status}`;
+          if (processedEventIndices.has(eventKey)) continue;
+          
           // Si es OCUPADO, es inicio de carga
           if (change.new_status !== 'FREE' && change.new_status !== 'AVAILABLE') {
             const startTime = new Date(change.timestamp).getTime();
             let endEvent = null;
+            let endEventIndex = -1;
             
             // Buscar si hay un FREE posterior
             for (let j = i + 1; j < connectorChanges.length; j++) {
               if (connectorChanges[j].new_status === 'FREE' || connectorChanges[j].new_status === 'AVAILABLE') {
                 endEvent = connectorChanges[j];
+                endEventIndex = j;
                 break;
               }
             }
@@ -110,12 +116,9 @@ export default function MonitorPage() {
               const endTime = new Date(endEvent.timestamp).getTime();
               const durationMinutes = Math.floor((endTime - startTime) / 60000);
               
-              // Crear ID único para este par OCCUPIED-FREE
-              const pairId = `${change.connector_id}-${change.timestamp}-${endEvent.timestamp}`;
-              
-              // Evitar duplicados
-              if (processedPairs.has(pairId)) continue;
-              processedPairs.add(pairId);
+              // Marcar ambos eventos como procesados para no reutilizarlos
+              processedEventIndices.add(eventKey);
+              processedEventIndices.add(`${change.connector_id}-${endEvent.timestamp}-${endEvent.new_status}`);
               
               // Usar el evento FREE como base pero guardar el timestamp de inicio
               chargesWithStatus.push({
