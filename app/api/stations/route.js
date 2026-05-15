@@ -114,7 +114,23 @@ export async function GET(request) {
         try {
           const conectoresRaw = await consultarEstado(est.id, token);
           
-          const formattedConnectors = conectoresRaw.map(connector => {
+          // DEBUG: Ver qué conectores trae Electromaps
+          if (est.id === 828535) {
+            console.log(`[v0] Estacion ${est.nombre} (${est.id}) trae conectores:`, conectoresRaw.map(c => c.visualRef || c.id));
+          }
+          
+          // Filtrar conectores específicos según la estación
+          let conectoresFiltrados = conectoresRaw;
+          if (est.id === 828535) {
+            // Calle Almendralejo (2) - excluir 003657 y 003658 que pertenecen a Avda. Roma
+            conectoresFiltrados = conectoresRaw.filter(c => {
+              const visualRef = c.visualRef || String(c.id);
+              return !['003657', '003658'].includes(visualRef);
+            });
+            console.log(`[v0] Despues del filtro quedan:`, conectoresFiltrados.map(c => c.visualRef || c.id));
+          }
+          
+          const formattedConnectors = conectoresFiltrados.map(connector => {
             // Verificar si hay override de prueba para este cargador
             const visualRef = connector.visualRef || String(connector.id);
             const datosPrueba = cargadoresPrueba[visualRef] || null;

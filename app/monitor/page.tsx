@@ -12,6 +12,7 @@ export default function MonitorPage() {
   const [totalDailyCharges, setTotalDailyCharges] = useState(0); // Total cargas hoy
   const [occupancyPerStation, setOccupancyPerStation] = useState({}); // Porcentaje ocupación por estación
   const [globalOccupancy, setGlobalOccupancy] = useState(0); // Porcentaje ocupación global
+  const [sanctionableCharges, setSanctionableCharges] = useState(0); // Cargas > 2 horas
   const [loading, setLoading] = useState(true);
   const [selectedTab, setSelectedTab] = useState('estaciones');
   const [autoRefresh, setAutoRefresh] = useState(true);
@@ -130,10 +131,11 @@ export default function MonitorPage() {
         }
       });
       
-      // Ordenar por fecha descendente y limitar a 50
+      // Ordenar por fecha descendente, filtrar solo completadas y limitar a 200
       const sortedCharges = chargesWithStatus
+        .filter(charge => charge.isCompleted) // Solo mostrar cargas completadas
         .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-        .slice(0, 50);
+        .slice(0, 200); // Aumentado de 50 a 200
       
       setChargeHistory(sortedCharges);
       
@@ -145,8 +147,8 @@ export default function MonitorPage() {
       const STATION_ID_TO_NAME = {
         '828537': 'Estacion Bus',
         '828524': 'Avda. Roma',
-        '828534': 'Calle Almendralejo (1)',
-        '828535': 'Calle Almendralejo (2)',
+        '828534': 'Calle Almendralejo', // Mapeamos ambas a "Calle Almendralejo" combinado
+        '828535': 'Calle Almendralejo', // Mapeamos ambas a "Calle Almendralejo" combinado
         '828523': 'Plaza Xirgu',
         '828538': 'Avda. del Prado'
       };
@@ -235,10 +237,25 @@ export default function MonitorPage() {
   // Re-renderizar cada segundo para actualizar los tiempos dinámicamente (como en Scriptable)
   useEffect(() => {
     const timer = setInterval(() => {
+      // Calcular sancionables en tiempo real (conectores OCUPADO > 2 horas)
+      let sanctionable = 0;
+      stations.forEach(station => {
+        station.connectors?.forEach(connector => {
+          if (connector.status !== 'FREE' && connector.status !== 'AVAILABLE') {
+            const startTime = new Date(connector.status_changed_at).getTime();
+            const durationMinutes = Math.floor((Date.now() - startTime) / 60000);
+            if (durationMinutes > 120) {
+              sanctionable++;
+            }
+          }
+        });
+      });
+      setSanctionableCharges(sanctionable);
+      
       setStations(prev => [...prev]); // Forzar re-render sin cambiar data
     }, 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [stations]);
 
   // Reloj con segundero activo
   useEffect(() => {
@@ -304,11 +321,24 @@ export default function MonitorPage() {
     return '🔴';
   };
 
-  // Función para generar color de coche basado en conector ID
-  const getCarColor = (connectorId: string) => {
-    const colors = ['🔴', '🟠', '🟡', '🟢', '🔵', '🟣', '🟤', '⚪'];
+  // Función para generar icono de coche diferente basado en conector ID
+  const getCarIcon = (connectorId: string) => {
+    const icons = ['🚗', '🚕', '🚙', '🚌', '🚎', '🏎️', '🚓', '🚑'];
     const hash = connectorId.charCodeAt(connectorId.length - 1) || 0;
-    return colors[hash % colors.length];
+    return icons[hash % icons.length];
+  };
+
+  // Función para detectar si un conector está OCUPADO y ha excedido 2 horas
+  const hasOvertimeCharges = (connector) => {
+    // Solo si el conector está OCUPADO actualmente
+    if (connector.status === 'FREE' || connector.status === 'AVAILABLE') return false;
+    
+    // Calcular tiempo desde que cambió de estado
+    const startTime = new Date(connector.status_changed_at).getTime();
+    const durationMinutes = Math.floor((Date.now() - startTime) / 60000);
+    
+    // Retornar true solo si excede 120 minutos
+    return durationMinutes > 120;
   };
 
   // Agrupar estaciones de Calle Almendralejo con IDs específicas
@@ -318,21 +348,19 @@ export default function MonitorPage() {
       const almendralejo1 = station;
       const almendralejo2 = stations.find(s => s.id === 828535);
       
-      // Conectores que pertenecen a Calle Almendralejo (4 IDs específicas)
+      // Conectores que pertenecen a Calle Almendralejo - SOLO estos 4 IDs
       const almendralejoCombined = [];
-      if (almendralejo1) almendralejoCombined.push(...almendralejo1.connectors);
-      if (almendralejo2) almendralejoCombined.push(...almendralejo2.connectors);
+      const almendralejoCodes = ['003649', '003650', '003651', '003652'];
       
-      // Buscar otros conectores de Calle Almendralejo por ID
-      const otherStationsConnectors = stations
-        .filter(s => s.id !== 828534 && s.id !== 828535)
-        .flatMap(s => 
-          s.connectors.filter(c => 
-            ['4543398', '4543399', '4543421', '4543422'].includes(String(c.id))
-          )
-        );
-      
-      almendralejoCombined.push(...otherStationsConnectors);
+      // Buscar solo los conectores con estos IDs específicos en todas las estaciones
+      stations.forEach(station => {
+        station.connectors?.forEach(connector => {
+          const visualRef = connector.visualRef || String(connector.id);
+          if (almendralejoCodes.includes(visualRef)) {
+            almendralejoCombined.push(connector);
+          }
+        });
+      });
       
       if (almendralejoCombined.length > 0) {
         acc.push({
@@ -354,11 +382,11 @@ export default function MonitorPage() {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-4xl font-bold text-white mb-2">GuardianCharger Mérida <span className="text-lg text-slate-400">{APP_VERSION}</span></h1>
+          <h1 className="text-4xl font-bold text-white mb-2">HackerCharger Mérida <span className="text-lg text-slate-400">{APP_VERSION}</span></h1>
           <p className="text-slate-300">Sistema de monitoreo de cargadores eléctricos de vehículos en tiempo real</p>
           
-          {/* Daily Charge Counter - Total + Occupancy */}
-          <div className="mt-4 flex items-center gap-6 text-lg">
+          {/* Daily Charge Counter - Total + Occupancy + Sancionables */}
+          <div className="mt-4 flex items-center gap-6 text-lg flex-wrap">
             <div className="flex items-center gap-2">
               <span className="text-2xl">🔌🚗</span>
               <span className="text-green-400 font-bold">Hoy: {totalDailyCharges} cargas</span>
@@ -366,6 +394,10 @@ export default function MonitorPage() {
             <div className="flex items-center gap-2">
               <span className="text-2xl">📊</span>
               <span className="text-blue-400 font-bold">Ocupación: {globalOccupancy}%</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-2xl">⚠️</span>
+              <span className="text-red-500 font-bold">Sancionables: {sanctionableCharges}</span>
             </div>
           </div>
         </div>
@@ -425,7 +457,19 @@ export default function MonitorPage() {
                         return (
                           <div key={idx} className="space-y-2">
                             <div
-                              className={`p-3 rounded-lg border-2 flex flex-col justify-center h-20 ${getStatusColor(connector.status)}`}
+                              className={`p-3 rounded-lg border-2 flex flex-col justify-center h-20 ${getStatusColor(connector.status)} ${
+                                hasOvertimeCharges(connector) 
+                                  ? 'animate-pulse border-red-500 shadow-lg shadow-red-500' 
+                                  : ''
+                              }`}
+                              style={
+                                hasOvertimeCharges(connector)
+                                  ? {
+                                      animation: 'pulse 0.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                                      boxShadow: '0 0 20px rgba(239, 68, 68, 0.8)'
+                                    }
+                                  : {}
+                              }
                             >
                               <div className="text-xs opacity-75 mb-1">
                                 ID: {connector.visualRef || connector.id}
@@ -498,7 +542,7 @@ export default function MonitorPage() {
                       
                       return (
                         <div key={idx} className={`${bgColor} px-3 py-2 flex items-start gap-2 border-b border-slate-600 last:border-b-0`}>
-                          <span className="text-2xl mt-1">{getCarColor(charge.connector_id)}</span>
+                          <span className="text-2xl mt-1">{getCarIcon(charge.connector_id)}</span>
                           <div className="flex-1">
                             {/* Primera línea: fecha, hora, ID */}
                             <div className="font-mono text-sm text-slate-300 flex gap-3 mb-1">
@@ -509,17 +553,12 @@ export default function MonitorPage() {
                             <div className="font-mono text-sm flex gap-3 items-center">
                               <span className="text-slate-300">{charge.station_name}</span>
                               <span className={
-                                !charge.isCompleted 
-                                  ? 'text-yellow-400 font-semibold' 
-                                  : charge.isOverLimit 
+                                charge.isOverLimit 
                                   ? 'text-red-400 font-bold' 
                                   : 'text-green-400 font-bold'
                               }>
                                 {durationStr}
                               </span>
-                              {!charge.isCompleted && (
-                                <span className="text-orange-400 animate-pulse text-xs">activo</span>
-                              )}
                             </div>
                           </div>
                         </div>
