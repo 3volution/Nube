@@ -254,9 +254,9 @@ export default function MonitorPage() {
       }
     });
     
-    const MAX_DAILY_MINUTES = 17280;
+    const MAX_DAILY_MINUTES = 11520;
     
-    // Calcular porcentaje: máximo 17280 minutos al día
+    // Calcular porcentaje: máximo 11520 minutos al día
     const occupancyPercent = Math.min(100, Math.round((totalOccupiedTime / MAX_DAILY_MINUTES) * 100));
     
     setTodayOccupancy(occupancyPercent);
