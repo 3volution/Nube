@@ -43,51 +43,16 @@ export default function MonitorPage() {
   const [error, setError] = useState(null);
   const [currentTime, setCurrentTime] = useState(new Date());
 
-  // Orden personalizado de estaciones
-  const STATION_ORDER = {
-    828537: 0, // Estacion Bus
-    828524: 1, // Avda. Roma
-    828534: 2, // Calle Almendralejo (1)
-    828535: 3, // Calle Almendralejo (2)
-    828523: 4, // Plaza Xirgu
-    828538: 5  // Avda. del Prado
+  // Mapeo de station_id a nombre de estacion (para hacer match robusto)
+  const STATION_ID_TO_NAME = {
+    '828537': 'Estacion Bus',
+    '828524': 'Avda. Roma',
+    '828534': 'Calle Almendralejo', // Mapeamos ambas a "Calle Almendralejo" combinado
+    '828535': 'Calle Almendralejo', // Mapeamos ambas a "Calle Almendralejo" combinado
+    '828523': 'Plaza Xirgu',
+    '828538': 'Avda. del Prado'
   };
 
-  const fetchData = async () => {
-    try {
-      const [stationsRes, changesRes, logsRes] = await Promise.all([
-        fetch('/api/stations'),
-        fetch('/api/state-changes?limit=200'),
-        fetch('/api/logs?limit=100')
-      ]);
-
-      if (stationsRes.ok) {
-        const stationsData = await stationsRes.json();
-        const sorted = (stationsData.stations || []).sort((a, b) => 
-          (STATION_ORDER[a.id] ?? 999) - (STATION_ORDER[b.id] ?? 999)
-        );
-        setStations(sorted);
-      }
-
-      if (changesRes.ok) {
-        const changesData = await changesRes.json();
-        setStateChanges(changesData.changes || []);
-      }
-
-      if (logsRes.ok) {
-        const logsData = await logsRes.json();
-        setLogs(logsData.logs || []);
-      }
-      setError(null);
-    } catch (err) {
-      console.error('[v0] Error fetching data:', err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Extraer historial de cargas con estado (en progreso / completada)
   useEffect(() => {
     if (stateChanges.length > 0) {
       // Ordenar cronologicamente
@@ -181,16 +146,6 @@ export default function MonitorPage() {
       // Calcular cargas del dia actual (desde las 00:00)
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      
-      // Mapeo de station_id a nombre de estacion (para hacer match robusto)
-      const STATION_ID_TO_NAME = {
-        '828537': 'Estacion Bus',
-        '828524': 'Avda. Roma',
-        '828534': 'Calle Almendralejo', // Mapeamos ambas a "Calle Almendralejo" combinado
-        '828535': 'Calle Almendralejo', // Mapeamos ambas a "Calle Almendralejo" combinado
-        '828523': 'Plaza Xirgu',
-        '828538': 'Avda. del Prado'
-      };
       
       const chargesPerStation = {};
       
