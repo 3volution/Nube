@@ -12,7 +12,11 @@ export default function MonitorPage() {
   const [totalDailyCharges, setTotalDailyCharges] = useState(0); // Total cargas hoy
   const [occupancyPerStation, setOccupancyPerStation] = useState({}); // Porcentaje ocupación por estación
   const [globalOccupancy, setGlobalOccupancy] = useState(0); // Porcentaje ocupación global
-  const [sanctionableCharges, setSanctionableCharges] = useState(0); // Cargas > 2 horas
+  const [sanctionableCharges, setSanctionableCharges] = useState(0); // Cargas > 2 horas EN TIEMPO REAL
+  const [todayCharges, setTodayCharges] = useState(0); // Total cargas HOY desde 00:00
+  const [todayOccupancy, setTodayOccupancy] = useState(0); // Ocupación promedio HOY
+  const [todaySanctionable, setTodaySanctionable] = useState(0); // Total sancionables HOY
+  const [currentlyOccupied, setCurrentlyOccupied] = useState(0); // Conectores OCUPADOS en este momento
   const [loading, setLoading] = useState(true);
   const [selectedTab, setSelectedTab] = useState('estaciones');
   const [autoRefresh, setAutoRefresh] = useState(true);
@@ -232,11 +236,17 @@ export default function MonitorPage() {
   // Re-renderizar cada segundo para actualizar los tiempos dinámicamente (como en Scriptable)
   useEffect(() => {
     const timer = setInterval(() => {
-      // Calcular sancionables en tiempo real (conectores OCUPADO > 2 horas)
+      // Calcular estadísticas AHORA MISMO
       let sanctionable = 0;
+      let occupied = 0;
+      
       stations.forEach(station => {
         station.connectors?.forEach(connector => {
+          // Contar conectores ocupados en este momento
           if (connector.status !== 'FREE' && connector.status !== 'AVAILABLE') {
+            occupied++;
+            
+            // Verificar si supera 2 horas
             const startTime = new Date(connector.status_changed_at).getTime();
             const durationMinutes = Math.floor((Date.now() - startTime) / 60000);
             if (durationMinutes > 120) {
@@ -245,7 +255,14 @@ export default function MonitorPage() {
           }
         });
       });
+      
+      // Calcular porcentaje de ocupación ahora mismo
+      const totalConnectors = 12;
+      const occupancyPercent = Math.round((occupied / totalConnectors) * 100);
+      
       setSanctionableCharges(sanctionable);
+      setCurrentlyOccupied(occupied);
+      setGlobalOccupancy(occupancyPercent);
       
       setStations(prev => [...prev]); // Forzar re-render sin cambiar data
     }, 1000);
@@ -317,8 +334,13 @@ export default function MonitorPage() {
   };
 
   // Función para generar icono de coche diferente basado en conector ID
-  const getCarIcon = (connectorId: string) => {
+  const getCarIcon = (connectorId: string, index?: number) => {
     const icons = ['🚗', '🚕', '🚙', '🚌', '🚎', '🏎️', '🚓', '🚑'];
+    // Si se proporciona índice (para líneas contiguas), usar índice
+    if (index !== undefined) {
+      return icons[index % icons.length];
+    }
+    // Si no, usar el hash del conector ID
     const hash = connectorId.charCodeAt(connectorId.length - 1) || 0;
     return icons[hash % icons.length];
   };
@@ -380,19 +402,40 @@ export default function MonitorPage() {
           <h1 className="text-4xl font-bold text-white mb-2">HackerCharger Mérida <span className="text-lg text-slate-400">{APP_VERSION}</span></h1>
           <p className="text-slate-300">Sistema de monitoreo de cargadores eléctricos de vehículos en tiempo real</p>
           
-          {/* Daily Charge Counter - Total + Occupancy + Sancionables */}
-          <div className="mt-4 flex items-center gap-6 text-lg flex-wrap">
-            <div className="flex items-center gap-2">
-              <span className="text-2xl">🔌🚗</span>
-              <span className="text-green-400 font-bold">Hoy: {totalDailyCharges} cargas</span>
+          {/* Daily Charge Counter - Two lines: HOY vs AHORA MISMO */}
+          <div className="mt-4 space-y-3">
+            {/* Línea 1: HOY */}
+            <div className="flex items-center gap-6 text-lg flex-wrap bg-slate-800 bg-opacity-50 p-3 rounded">
+              <span className="font-bold text-yellow-400">HOY:</span>
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">🔌🚗</span>
+                <span className="text-green-400 font-bold">{todayCharges} cargas</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">📊</span>
+                <span className="text-blue-400 font-bold">{todayOccupancy}%</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">⚠️</span>
+                <span className="text-red-500 font-bold">Sancionables: {todaySanctionable}</span>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-2xl">📊</span>
-              <span className="text-blue-400 font-bold">Ocupación: {globalOccupancy}%</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-2xl">⚠️</span>
-              <span className="text-red-500 font-bold">Sancionables: {sanctionableCharges}</span>
+            
+            {/* Línea 2: AHORA MISMO */}
+            <div className="flex items-center gap-6 text-lg flex-wrap bg-slate-800 bg-opacity-50 p-3 rounded">
+              <span className="font-bold text-cyan-400">AHORA MISMO:</span>
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">⚡</span>
+                <span className="text-green-400 font-bold">{currentlyOccupied} cargando</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">📊</span>
+                <span className="text-blue-400 font-bold">{globalOccupancy}% ({currentlyOccupied}/12)</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">🔴</span>
+                <span className="text-red-500 font-bold">{sanctionableCharges} excedidos</span>
+              </div>
             </div>
           </div>
         </div>
@@ -537,7 +580,7 @@ export default function MonitorPage() {
                       
                       return (
                         <div key={idx} className={`${bgColor} px-3 py-2 flex items-start gap-2 border-b border-slate-600 last:border-b-0`}>
-                          <span className="text-2xl mt-1">{getCarIcon(charge.connector_id)}</span>
+                          <span className="text-2xl mt-1">{getCarIcon(charge.connector_id, idx)}</span>
                           <div className="flex-1">
                             {/* Primera línea: fecha, hora, ID */}
                             <div className="font-mono text-sm text-slate-300 flex gap-3 mb-1">
