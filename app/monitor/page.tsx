@@ -459,7 +459,7 @@ export default function MonitorPage() {
                 <span className="text-green-400 font-bold">{todayCharges} cargas</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-2xl">📊</span>
+                <span className="text-2xl">⚡</span>
                 <span className="text-blue-400 font-bold">{todayOccupancy}%</span>
               </div>
               <div className="flex items-center gap-2">
@@ -477,11 +477,11 @@ export default function MonitorPage() {
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-2xl">📊</span>
-                <span className="text-blue-400 font-bold">{globalOccupancy}% ({currentlyOccupied}/12)</span>
+                <span className="text-blue-400 font-bold">{globalOccupancy}% (<span className="text-green-400">{currentlyOccupied}</span>/12)</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-2xl">⚠️</span>
-                <span className="text-red-500 font-bold animate-pulse">{sanctionableCharges}</span>
+                <span className="text-red-500 font-bold animate-pulse">{sanctionableCharges} excedido</span>
               </div>
             </div>
           </div>
