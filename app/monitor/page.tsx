@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { APP_VERSION } from '@/app/config/version';
 
 export default function MonitorPage() {
@@ -43,39 +43,51 @@ export default function MonitorPage() {
   const [error, setError] = useState(null);
   const [currentTime, setCurrentTime] = useState(new Date());
 
-  // Mapeo de station_id a nombre de estacion (para hacer match robusto)
-  const STATION_ID_TO_NAME = {
-    '828537': 'Estacion Bus',
-    '828524': 'Avda. Roma',
-    '828534': 'Calle Almendralejo',
-    '828535': 'Calle Almendralejo',
-    '828523': 'Plaza Xirgu',
-    '828538': 'Avda. del Prado'
+  // Orden personalizado de estaciones
+  const STATION_ORDER = {
+    828537: 0, // Estacion Bus
+    828524: 1, // Avda. Roma
+    828534: 2, // Calle Almendralejo (1)
+    828535: 3, // Calle Almendralejo (2)
+    828523: 4, // Plaza Xirgu
+    828538: 5  // Avda. del Prado
   };
 
-  // Función para obtener datos usando useCallback
-  const fetchData = useCallback(async () => {
+  const fetchData = async () => {
     try {
-      const [stateChangesRes, stationsRes, chargesRes] = await Promise.all([
-        fetch('/api/state-changes?limit=200'),
+      const [stationsRes, changesRes, logsRes] = await Promise.all([
         fetch('/api/stations'),
+        fetch('/api/state-changes?limit=200'),
         fetch('/api/logs?limit=100')
       ]);
 
-      const stateChangesData = await stateChangesRes.json();
-      const stationsData = await stationsRes.json();
-      const chargesData = await chargesRes.json();
+      if (stationsRes.ok) {
+        const stationsData = await stationsRes.json();
+        const sorted = (stationsData.stations || []).sort((a, b) => 
+          (STATION_ORDER[a.id] ?? 999) - (STATION_ORDER[b.id] ?? 999)
+        );
+        setStations(sorted);
+      }
 
-      setStateChanges(stateChangesData || []);
-      setStations(stationsData || []);
-      setLoading(false);
+      if (changesRes.ok) {
+        const changesData = await changesRes.json();
+        setStateChanges(changesData.changes || []);
+      }
+
+      if (logsRes.ok) {
+        const logsData = await logsRes.json();
+        setLogs(logsData.logs || []);
+      }
+      setError(null);
     } catch (err) {
       console.error('[v0] Error fetching data:', err);
-      setError('Error al cargar datos');
+      setError(err.message);
+    } finally {
       setLoading(false);
     }
-  }, []);
+  };
 
+  // Extraer historial de cargas con estado (en progreso / completada)
   useEffect(() => {
     if (stateChanges.length > 0) {
       // Ordenar cronologicamente
@@ -169,6 +181,16 @@ export default function MonitorPage() {
       // Calcular cargas del dia actual (desde las 00:00)
       const today = new Date();
       today.setHours(0, 0, 0, 0);
+      
+      // Mapeo de station_id a nombre de estacion (para hacer match robusto)
+      const STATION_ID_TO_NAME = {
+        '828537': 'Estacion Bus',
+        '828524': 'Avda. Roma',
+        '828534': 'Calle Almendralejo', // Mapeamos ambas a "Calle Almendralejo" combinado
+        '828535': 'Calle Almendralejo', // Mapeamos ambas a "Calle Almendralejo" combinado
+        '828523': 'Plaza Xirgu',
+        '828538': 'Avda. del Prado'
+      };
       
       const chargesPerStation = {};
       
@@ -376,7 +398,7 @@ export default function MonitorPage() {
   };
 
   // Agrupar estaciones de Calle Almendralejo con IDs específicas
-  const displayStations = stations && Array.isArray(stations) ? stations.reduce((acc, station) => {
+  const displayStations = stations.reduce((acc, station) => {
     if (station.id === 828534) {
       // Encontrar ambas estaciones de Calle Almendralejo (828534 y 828535)
       const almendralejo1 = station;
@@ -409,7 +431,7 @@ export default function MonitorPage() {
       acc.push(station);
     }
     return acc;
-  }, []) : [];
+  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 p-6">
