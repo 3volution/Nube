@@ -130,10 +130,11 @@ export default function MonitorPage() {
         }
       });
       
-      // Ordenar por fecha descendente y limitar a 50
+      // Ordenar por fecha descendente, filtrar solo completadas y limitar a 200
       const sortedCharges = chargesWithStatus
+        .filter(charge => charge.isCompleted) // Solo mostrar cargas completadas
         .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-        .slice(0, 50);
+        .slice(0, 200); // Aumentado de 50 a 200
       
       setChargeHistory(sortedCharges);
       
@@ -304,11 +305,11 @@ export default function MonitorPage() {
     return '🔴';
   };
 
-  // Función para generar color de coche basado en conector ID
-  const getCarColor = (connectorId: string) => {
-    const colors = ['🔴', '🟠', '🟡', '🟢', '🔵', '🟣', '🟤', '⚪'];
+  // Función para generar icono de coche diferente basado en conector ID
+  const getCarIcon = (connectorId: string) => {
+    const icons = ['🚗', '🚕', '🚙', '🚌', '🚎', '🏎️', '🚓', '🚑'];
     const hash = connectorId.charCodeAt(connectorId.length - 1) || 0;
-    return colors[hash % colors.length];
+    return icons[hash % icons.length];
   };
 
   // Agrupar estaciones de Calle Almendralejo con IDs específicas
@@ -498,7 +499,7 @@ export default function MonitorPage() {
                       
                       return (
                         <div key={idx} className={`${bgColor} px-3 py-2 flex items-start gap-2 border-b border-slate-600 last:border-b-0`}>
-                          <span className="text-2xl mt-1">{getCarColor(charge.connector_id)}</span>
+                          <span className="text-2xl mt-1">{getCarIcon(charge.connector_id)}</span>
                           <div className="flex-1">
                             {/* Primera línea: fecha, hora, ID */}
                             <div className="font-mono text-sm text-slate-300 flex gap-3 mb-1">
@@ -509,17 +510,12 @@ export default function MonitorPage() {
                             <div className="font-mono text-sm flex gap-3 items-center">
                               <span className="text-slate-300">{charge.station_name}</span>
                               <span className={
-                                !charge.isCompleted 
-                                  ? 'text-yellow-400 font-semibold' 
-                                  : charge.isOverLimit 
+                                charge.isOverLimit 
                                   ? 'text-red-400 font-bold' 
                                   : 'text-green-400 font-bold'
                               }>
                                 {durationStr}
                               </span>
-                              {!charge.isCompleted && (
-                                <span className="text-orange-400 animate-pulse text-xs">activo</span>
-                              )}
                             </div>
                           </div>
                         </div>
