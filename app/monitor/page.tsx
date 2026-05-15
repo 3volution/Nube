@@ -184,31 +184,38 @@ export default function MonitorPage() {
 
   // Recalcular estadísticas HOY cuando cambie chargeHistory
   useEffect(() => {
-    if (chargeHistory.length === 0) return;
+    if (chargeHistory.length === 0) {
+      setTodayOccupancy(0);
+      setTodaySanctionable(0);
+      return;
+    }
     
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
     let totalOccupiedTime = 0;
+    let todaySanctionableCount = 0;
     
     chargeHistory.forEach(charge => {
       const chargeTime = new Date(charge.timestamp);
-      if (chargeTime >= today && charge.durationMinutes) {
-        totalOccupiedTime += charge.durationMinutes;
+      if (chargeTime >= today) {
+        // Sumar duración solo si es una carga completada hoy
+        if (charge.durationMinutes) {
+          totalOccupiedTime += charge.durationMinutes;
+        }
+        // Contar como sancionable si excedió 2 horas y fue hoy
+        if (charge.isOverLimit) {
+          todaySanctionableCount++;
+        }
       }
     });
     
-    const MAX_DAILY_MINUTES = 24 * 60 * 12;
+    // Calcular porcentaje: máximo 17280 minutos al día
+    const MAX_DAILY_MINUTES = 17280;
     const occupancyPercent = Math.min(100, Math.round((totalOccupiedTime / MAX_DAILY_MINUTES) * 100));
     
     setTodayOccupancy(occupancyPercent);
-    
-    const todaySanctionable = chargeHistory.filter(charge => {
-      const chargeTime = new Date(charge.timestamp);
-      return chargeTime >= today && charge.isOverLimit;
-    }).length;
-    
-    setTodaySanctionable(todaySanctionable);
+    setTodaySanctionable(todaySanctionableCount);
   }, [chargeHistory]);
 
   useEffect(() => {
