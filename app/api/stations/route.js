@@ -114,7 +114,17 @@ export async function GET(request) {
         try {
           const conectoresRaw = await consultarEstado(est.id, token);
           
-          const formattedConnectors = conectoresRaw.map(connector => {
+          // Filtrar conectores específicos según la estación
+          let conectoresFiltrados = conectoresRaw;
+          if (est.id === 828535) {
+            // Calle Almendralejo (2) - excluir 003657 y 003658 que pertenecen a Avda. Roma
+            conectoresFiltrados = conectoresRaw.filter(c => {
+              const visualRef = c.visualRef || String(c.id);
+              return !['003657', '003658'].includes(visualRef);
+            });
+          }
+          
+          const formattedConnectors = conectoresFiltrados.map(connector => {
             // Verificar si hay override de prueba para este cargador
             const visualRef = connector.visualRef || String(connector.id);
             const datosPrueba = cargadoresPrueba[visualRef] || null;
