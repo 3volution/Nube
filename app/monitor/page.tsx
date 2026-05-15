@@ -147,8 +147,8 @@ export default function MonitorPage() {
       const STATION_ID_TO_NAME = {
         '828537': 'Estacion Bus',
         '828524': 'Avda. Roma',
-        '828534': 'Calle Almendralejo (1)',
-        '828535': 'Calle Almendralejo (2)',
+        '828534': 'Calle Almendralejo', // Mapeamos ambas a "Calle Almendralejo" combinado
+        '828535': 'Calle Almendralejo', // Mapeamos ambas a "Calle Almendralejo" combinado
         '828523': 'Plaza Xirgu',
         '828538': 'Avda. del Prado'
       };
