@@ -173,7 +173,7 @@ export default function MonitorPage() {
       setDailyChargesPerStation(chargesPerStation);
       setTodayCharges(totalCharges);
       
-      // Calcular porcentaje de ocupación HOY como tiempo total ocupado / tiempo total disponible
+      // Calcular porcentaje de ocupación HOY como tiempo total ocupado / 17280 minutos máximos del día
       let totalOccupiedTime = 0;
       
       chargeHistory.forEach(charge => {
@@ -183,21 +183,16 @@ export default function MonitorPage() {
         }
       });
       
-      // Tiempo total disponible desde 00:00 hasta ahora (en minutos)
-      const now = new Date();
-      const totalMinutesAvailable = Math.floor((now.getTime() - today.getTime()) / 60000);
+      // Máximo de minutos disponibles en un día: 24 horas * 60 minutos * 12 conectores = 17280
+      const MAX_DAILY_MINUTES = 24 * 60 * 12; // 17280 minutos
       
-      // Multiplicar por 12 conectores (tiempo si todos estuvieran disponibles)
-      const totalConnectorMinutes = totalMinutesAvailable * 12;
-      
-      // Porcentaje: tiempo ocupado / tiempo total disponible
-      const occupancyPercent = totalConnectorMinutes > 0 
-        ? Math.round((totalOccupiedTime / totalConnectorMinutes) * 100) 
-        : 0;
+      // Porcentaje: tiempo ocupado / 17280 minutos máximos
+      const occupancyPercent = Math.round((totalOccupiedTime / MAX_DAILY_MINUTES) * 100);
       
       setTodayOccupancy(occupancyPercent);
       
-      // Contar sancionables acumuladas HOY (cargas > 2 horas)
+      // Contar sancionables acumuladas HOY (cargas completadas que excedieron 2 horas)
+      // Usa isOverLimit que ya está calculado correctamente en el historial
       const todaySanctionable = chargeHistory.filter(charge => {
         const chargeTime = new Date(charge.timestamp);
         return chargeTime >= today && charge.isOverLimit;
