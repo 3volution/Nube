@@ -79,8 +79,8 @@ export default function MonitorPage() {
         changesByConnector[key].push(change);
       });
       
-      // Crear historial distinguiendo entre cargas en progreso y completadas
-      const chargesWithStatus: Array<typeof stateChanges[0] & { isCompleted: boolean; durationMinutes: number; isOverLimit: boolean }> = [];
+      // Crear historial solo con cambios OCUPADO→FREE completados
+      const chargesWithStatus: Array<typeof stateChanges[0] & { isCompleted: boolean; durationMinutes: number; isOverLimit: boolean; startTimestamp: string }> = [];
       const processedPairs = new Set<string>(); // Para evitar duplicados (OCCUPIED-FREE pair)
       
       Object.values(changesByConnector).forEach(connectorChanges => {
@@ -91,8 +91,6 @@ export default function MonitorPage() {
           // Si es OCUPADO, es inicio de carga
           if (change.new_status !== 'FREE' && change.new_status !== 'AVAILABLE') {
             const startTime = new Date(change.timestamp).getTime();
-            let durationMinutes = 0;
-            let isCompleted = false;
             let endEvent = null;
             
             // Buscar si hay un FREE posterior
@@ -104,10 +102,9 @@ export default function MonitorPage() {
             }
             
             if (endEvent) {
-              // Carga completada
+              // Carga completada - crear UNA sola línea usando el evento FREE
               const endTime = new Date(endEvent.timestamp).getTime();
-              durationMinutes = Math.floor((endTime - startTime) / 60000);
-              isCompleted = true;
+              const durationMinutes = Math.floor((endTime - startTime) / 60000);
               
               // Crear ID único para este par OCCUPIED-FREE
               const pairId = `${change.connector_id}-${change.timestamp}-${endEvent.timestamp}`;
@@ -115,18 +112,16 @@ export default function MonitorPage() {
               // Evitar duplicados
               if (processedPairs.has(pairId)) continue;
               processedPairs.add(pairId);
-            } else {
-              // Carga en progreso
-              durationMinutes = Math.floor((Date.now() - startTime) / 60000);
-              isCompleted = false;
+              
+              // Usar el evento FREE como base pero guardar el timestamp de inicio
+              chargesWithStatus.push({
+                ...endEvent, // Usar endEvent para que el timestamp sea del FREE
+                startTimestamp: change.timestamp, // Guardar timestamp del OCCUPIED para cálculo de duración
+                isCompleted: true,
+                durationMinutes,
+                isOverLimit: durationMinutes > 120
+              });
             }
-            
-            chargesWithStatus.push({
-              ...change,
-              isCompleted,
-              durationMinutes,
-              isOverLimit: isCompleted && durationMinutes > 120
-            });
           }
         }
       });
