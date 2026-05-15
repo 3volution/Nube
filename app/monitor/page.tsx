@@ -495,6 +495,7 @@ export default function MonitorPage() {
                           </div>
                         );
                       })}
+                    </div>
                   </div>
                 ))}
               </div>
