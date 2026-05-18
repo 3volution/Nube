@@ -121,12 +121,21 @@ export async function GET(request) {
           
           // Filtrar conectores específicos según la estación
           let conectoresFiltrados = conectoresRaw;
-          if (est.id === 828535) {
+          if (est.id === 828524) {
+            // Avda. Roma - incluir solo 003657, 003658, 003659, 003660
+            conectoresFiltrados = conectoresRaw.filter(c => {
+              const visualRef = c.visualRef || String(c.id);
+              return ['003657', '003658', '003659', '003660'].includes(visualRef);
+            });
+            console.log(`[v0] Avda. Roma (${est.id}) trae conectores:`, conectoresRaw.map(c => c.visualRef || c.id));
+            console.log(`[v0] Avda. Roma despues del filtro:`, conectoresFiltrados.map(c => c.visualRef || c.id));
+          } else if (est.id === 828535) {
             // Calle Almendralejo (2) - excluir 003657 y 003658 que pertenecen a Avda. Roma
             conectoresFiltrados = conectoresRaw.filter(c => {
               const visualRef = c.visualRef || String(c.id);
               return !['003657', '003658'].includes(visualRef);
             });
+            console.log(`[v0] Estacion ${est.nombre} (${est.id}) trae conectores:`, conectoresRaw.map(c => c.visualRef || c.id));
             console.log(`[v0] Despues del filtro quedan:`, conectoresFiltrados.map(c => c.visualRef || c.id));
           }
           
