@@ -142,9 +142,14 @@ export async function GET(request) {
           const formattedConnectors = conectoresFiltrados.map(connector => {
             // Verificar si hay override de prueba para este cargador
             const visualRef = connector.visualRef || String(connector.id);
-            const datosPrueba = cargadoresPrueba[visualRef] || null;
             
-            // Usar datos de prueba si existen, sino usar datos de Electromaps
+            // Para Avda. Roma (003657, 003658), SIEMPRE usar datos de Electromaps, no datos de prueba
+            let datosPrueba = null;
+            if (est.id !== 828524) {
+              datosPrueba = cargadoresPrueba[visualRef] || null;
+            }
+            
+            // Usar datos de prueba si existen (pero no para Avda. Roma), sino usar datos de Electromaps
             const status = datosPrueba ? datosPrueba.status : connector.status;
             const statusUpdatedAt = datosPrueba ? datosPrueba.status_updated_at : connector.status_updated_at;
             

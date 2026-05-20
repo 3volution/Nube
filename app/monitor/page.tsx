@@ -658,7 +658,7 @@ export default function MonitorPage() {
                                       <span className="text-blue-600 font-bold">68%</span>
                                     </div>
                                     <div className="flex gap-2">
-                                      <span className="text-lg">🚫</span>
+                                      <span className="text-lg">⚠️</span>
                                       <span className="text-red-600 font-bold">3</span>
                                     </div>
                                   </div>
