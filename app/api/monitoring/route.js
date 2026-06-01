@@ -17,12 +17,15 @@ export async function POST(request) {
   try {
     const supabase = getSupabaseClient();
     const body = await request.json();
-    const { station_id, station_name, phone_number } = body;
+    const { station_id, station_name } = body;
+
+    // Teléfono hardcodeado
+    const phone_number = '+34607373373';
 
     // Validaciones básicas
-    if (!station_id || !station_name || !phone_number) {
+    if (!station_id || !station_name) {
       return Response.json(
-        { error: 'Missing required fields: station_id, station_name, phone_number' },
+        { error: 'Missing required fields: station_id, station_name' },
         { status: 400 }
       );
     }

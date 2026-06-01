@@ -3,13 +3,16 @@
 import { useState } from 'react';
 
 export function MonitoringModal({ station, isOpen, onClose, onStart }) {
-  const [phoneNumber, setPhoneNumber] = useState('');
+  const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
   const handleStart = async () => {
-    if (!phoneNumber.trim()) {
-      setError('Por favor ingresa tu número de teléfono');
+    const CORRECT_PIN = '0000';
+
+    if (pin !== CORRECT_PIN) {
+      setError('Código incorrecto');
+      setPin('');
       return;
     }
 
@@ -22,8 +25,7 @@ export function MonitoringModal({ station, isOpen, onClose, onStart }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           station_id: station.id,
-          station_name: station.name,
-          phone_number: phoneNumber
+          station_name: station.name
         })
       });
 
@@ -37,7 +39,7 @@ export function MonitoringModal({ station, isOpen, onClose, onStart }) {
 
       console.log('[v0] Monitoreo iniciado:', data);
       onStart(data.monitoring);
-      setPhoneNumber('');
+      setPin('');
       onClose();
     } catch (err) {
       console.error('[v0] Error:', err);
@@ -53,21 +55,21 @@ export function MonitoringModal({ station, isOpen, onClose, onStart }) {
       <div className="bg-slate-800 p-6 rounded-lg max-w-md w-full mx-4 border border-slate-700">
         <h2 className="text-white text-xl font-bold mb-4">Monitorear: {station.name}</h2>
         
-        <p className="text-slate-300 text-sm mb-4">
-          Recibirás una llamada de Twilio cuando se encuentre un cargador disponible. El monitoreo continuará hasta que lo desactives.
+        <p className="text-slate-300 text-sm mb-6">
+          Recibirás una llamada telefónica cuando se encuentre un cargador disponible. El monitoreo continuará hasta que lo desactives.
         </p>
 
         <div className="mb-4">
-          <label className="block text-slate-300 text-sm font-semibold mb-2">Tu número de teléfono</label>
+          <label className="block text-slate-300 text-sm font-semibold mb-2">Código de activación</label>
           <input
-            type="tel"
-            value={phoneNumber}
-            onChange={(e) => setPhoneNumber(e.target.value)}
-            placeholder="+34 600 000 000"
-            className="w-full px-3 py-2 bg-slate-700 text-white rounded border border-slate-600 focus:border-blue-500 outline-none"
+            type="password"
+            value={pin}
+            onChange={(e) => setPin(e.target.value.slice(0, 4))}
+            placeholder="0000"
+            maxLength="4"
+            className="w-full px-3 py-2 bg-slate-700 text-white rounded border border-slate-600 focus:border-blue-500 outline-none text-center text-2xl tracking-widest"
             disabled={loading}
           />
-          <p className="text-slate-400 text-xs mt-1">Incluye el código de país (ej: +34)</p>
         </div>
 
         {error && (
@@ -87,9 +89,9 @@ export function MonitoringModal({ station, isOpen, onClose, onStart }) {
           <button
             onClick={handleStart}
             className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded transition disabled:opacity-50 font-semibold"
-            disabled={loading}
+            disabled={loading || pin.length !== 4}
           >
-            {loading ? 'Iniciando...' : 'Iniciar Monitoreo'}
+            {loading ? 'Activando...' : 'Activar'}
           </button>
         </div>
       </div>
