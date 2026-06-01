@@ -734,6 +734,7 @@ export default function MonitorPage() {
                 ...prev,
                 [monitoringModal.station.id]: true
               }));
+              setMonitoringModal({ isOpen: false, station: null });
               console.log('[v0] Monitoreo iniciado:', monitoring);
             }}
           />
