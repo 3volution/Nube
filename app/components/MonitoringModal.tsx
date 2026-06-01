@@ -77,8 +77,9 @@ export function MonitoringModal({ station, isOpen, onClose, onStart }) {
             onChange={(e) => setPin(e.target.value.slice(0, 5))}
             maxLength="5"
             placeholder=""
-            className="w-full px-3 py-2 bg-slate-700 text-white rounded border border-slate-600 focus:border-blue-500 outline-none text-center tracking-wider opacity-0"
+            className="w-full px-3 py-2 bg-slate-700 text-white rounded border border-slate-600 focus:border-blue-500 outline-none text-center tracking-wider"
             disabled={loading}
+            autoFocus
           />
         </div>
 
