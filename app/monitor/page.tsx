@@ -283,6 +283,33 @@ export default function MonitorPage() {
     return () => clearInterval(interval);
   }, []);
 
+  // Cargar monitoreos activos desde Supabase al montar la página
+  useEffect(() => {
+    const loadActiveMonitorings = async () => {
+      try {
+        const response = await fetch('/api/monitoring/active');
+        const data = await response.json();
+        
+        if (data.activeMonitorings) {
+          // Convertir array de monitoreos a objeto { station_id: true }
+          const activeMap = {};
+          data.activeMonitorings.forEach(monitoring => {
+            activeMap[monitoring.station_id] = true;
+          });
+          setActiveMonitorings(activeMap);
+          console.log('[v0] Monitoreos activos cargados:', activeMap);
+        }
+      } catch (err) {
+        console.error('[v0] Error loading active monitorings:', err);
+      }
+    };
+
+    loadActiveMonitorings();
+    // Recargar monitoreos activos cada 30 segundos
+    const interval = setInterval(loadActiveMonitorings, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
   // Re-renderizar cada segundo para actualizar los tiempos dinámicamente (como en Scriptable)
   useEffect(() => {
     const timer = setInterval(() => {
