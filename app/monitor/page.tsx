@@ -283,6 +283,33 @@ export default function MonitorPage() {
     return () => clearInterval(interval);
   }, []);
 
+  // Cargar monitoreos activos desde Supabase al montar la página
+  useEffect(() => {
+    const loadActiveMonitorings = async () => {
+      try {
+        const response = await fetch('/api/monitoring/active');
+        const data = await response.json();
+        
+        if (data.activeMonitorings) {
+          // Convertir array de monitoreos a objeto { station_id: true }
+          const activeMap = {};
+          data.activeMonitorings.forEach(monitoring => {
+            activeMap[monitoring.station_id] = true;
+          });
+          setActiveMonitorings(activeMap);
+          console.log('[v0] Monitoreos activos cargados:', activeMap);
+        }
+      } catch (err) {
+        console.error('[v0] Error loading active monitorings:', err);
+      }
+    };
+
+    loadActiveMonitorings();
+    // Recargar monitoreos activos cada 30 segundos
+    const interval = setInterval(loadActiveMonitorings, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
   // Re-renderizar cada segundo para actualizar los tiempos dinámicamente (como en Scriptable)
   useEffect(() => {
     const timer = setInterval(() => {
@@ -517,7 +544,11 @@ export default function MonitorPage() {
                 {displayStations.map(station => (
                   <div
                     key={station.id}
-                    className="bg-slate-700 rounded-lg p-4 border border-slate-600 hover:border-slate-500 transition"
+                    className={`rounded-lg p-4 border transition ${
+                      activeMonitorings[station.id]
+                        ? 'bg-yellow-900/40 border-yellow-500 hover:border-yellow-400'
+                        : 'bg-slate-700 border-slate-600 hover:border-slate-500'
+                    }`}
                   >
                     <div className="flex justify-between items-start mb-4">
                       <div>
