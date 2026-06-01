@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { APP_VERSION } from '@/app/config/version';
+import { MonitoringModal } from '@/app/components/MonitoringModal';
+import { MonitoringBadge } from '@/app/components/MonitoringBadge';
 
 export default function MonitorPage() {
   const [stations, setStations] = useState([]);
@@ -42,6 +44,8 @@ export default function MonitorPage() {
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [error, setError] = useState(null);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [monitoringModal, setMonitoringModal] = useState({ isOpen: false, station: null });
+  const [activeMonitorings, setActiveMonitorings] = useState({});
 
   // Orden personalizado de estaciones
   const STATION_ORDER = {
@@ -518,9 +522,25 @@ export default function MonitorPage() {
                     <div className="flex justify-between items-start mb-4">
                       <div>
                         <h3 className="text-white font-bold text-2xl">{station.name}</h3>
+                        <MonitoringBadge 
+                          stationId={station.id}
+                          onMonitoringStatus={(isActive) => {
+                            setActiveMonitorings(prev => ({
+                              ...prev,
+                              [station.id]: isActive
+                            }));
+                          }}
+                        />
                       </div>
-                      <div className="text-right">
-                        <div className="flex items-center gap-3 justify-end">
+                      <div className="flex flex-col gap-2 items-end">
+                        <button
+                          onClick={() => setMonitoringModal({ isOpen: true, station })}
+                          className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-semibold transition"
+                          disabled={activeMonitorings[station.id]}
+                        >
+                          {activeMonitorings[station.id] ? 'Monitoreando...' : 'Monitorear'}
+                        </button>
+                        <div className="flex items-center gap-3">
                           <div className="flex items-center gap-1 text-red-500 font-bold text-sm">
                             <span>⚠️</span>
                             <span>{sanctionablePerStation[station.name] || 0}</span>
@@ -701,6 +721,22 @@ export default function MonitorPage() {
               </div>
             </div>
           </>
+        )}
+        
+        {/* Modal de Monitoreo */}
+        {monitoringModal.station && (
+          <MonitoringModal
+            station={monitoringModal.station}
+            isOpen={monitoringModal.isOpen}
+            onClose={() => setMonitoringModal({ isOpen: false, station: null })}
+            onStart={(monitoring) => {
+              setActiveMonitorings(prev => ({
+                ...prev,
+                [monitoringModal.station.id]: true
+              }));
+              console.log('[v0] Monitoreo iniciado:', monitoring);
+            }}
+          />
         )}
       </div>
     </div>
