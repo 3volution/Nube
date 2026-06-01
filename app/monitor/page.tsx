@@ -517,7 +517,11 @@ export default function MonitorPage() {
                 {displayStations.map(station => (
                   <div
                     key={station.id}
-                    className="bg-slate-700 rounded-lg p-4 border border-slate-600 hover:border-slate-500 transition"
+                    className={`rounded-lg p-4 border transition ${
+                      activeMonitorings[station.id]
+                        ? 'bg-yellow-900/40 border-yellow-500 hover:border-yellow-400'
+                        : 'bg-slate-700 border-slate-600 hover:border-slate-500'
+                    }`}
                   >
                     <div className="flex justify-between items-start mb-4">
                       <div>
