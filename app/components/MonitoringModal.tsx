@@ -40,6 +40,16 @@ export function MonitoringModal({ station, isOpen, onClose, onStart }) {
       const data = await response.json();
 
       if (!response.ok) {
+        // Si el monitoreo ya está activo, también cerramos y marcamos como activo
+        if (response.status === 409) {
+          console.log('[v0] Monitoreo ya activo, cerrando modal');
+          onStart({ station_id: station.id, already_active: true });
+          setLoading(false);
+          setPin('');
+          setIsAuthenticated(false);
+          onClose();
+          return;
+        }
         setError(data.error || 'Error al iniciar monitoreo');
         setLoading(false);
         return;
