@@ -2,10 +2,17 @@ import { createClient } from '@supabase/supabase-js';
 import { sendNotificationCascade } from '@/app/services/notification-service';
 import { getChargerStatus } from '@/lib/electromaps-client';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+// Helper function para crear cliente Supabase
+function getSupabaseClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  
+  if (!url || !key) {
+    throw new Error('Supabase environment variables not configured');
+  }
+  
+  return createClient(url, key);
+}
 
 /**
  * Cron Job: Ejecutar cada minuto para verificar disponibilidad de cargadores
@@ -19,6 +26,7 @@ export async function POST(request) {
   }
 
   try {
+    const supabase = getSupabaseClient();
     console.log('[v0] Iniciando verificación de cargadores...');
 
     // Obtener todos los monitoreos activos

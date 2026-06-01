@@ -1,13 +1,21 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+// Helper function para crear cliente Supabase
+function getSupabaseClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  
+  if (!url || !key) {
+    throw new Error('Supabase environment variables not configured');
+  }
+  
+  return createClient(url, key);
+}
 
 // POST: Iniciar monitoreo de una estación
 export async function POST(request) {
   try {
+    const supabase = getSupabaseClient();
     const body = await request.json();
     const {
       station_id,
@@ -78,6 +86,7 @@ export async function POST(request) {
 // GET: Obtener monitoreos activos
 export async function GET(request) {
   try {
+    const supabase = getSupabaseClient();
     const { searchParams } = new URL(request.url);
     const stationId = searchParams.get('station_id');
 

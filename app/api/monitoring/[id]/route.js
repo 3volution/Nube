@@ -1,13 +1,21 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+// Helper function para crear cliente Supabase
+function getSupabaseClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  
+  if (!url || !key) {
+    throw new Error('Supabase environment variables not configured');
+  }
+  
+  return createClient(url, key);
+}
 
 // PATCH: Detener monitoreo
 export async function PATCH(request, { params }) {
   try {
+    const supabase = getSupabaseClient();
     const { id } = params;
     const body = await request.json();
     const { action } = body; // 'stop' o 'found'
@@ -49,6 +57,7 @@ export async function PATCH(request, { params }) {
 // DELETE: Eliminar monitoreo
 export async function DELETE(request, { params }) {
   try {
+    const supabase = getSupabaseClient();
     const { id } = params;
 
     if (!id) {
