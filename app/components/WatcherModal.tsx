@@ -56,9 +56,20 @@ export function WatcherModal({ station, isOpen, onClose, onStart, onCancel, isWa
 
       if (!response.ok) {
         if (response.status === 409) {
-          // Ya existe vigilancia activa — tratar como éxito
+          // Ya existe vigilancia activa — tratar como éxito silencioso
           onStart({ station_id: station.id, already_active: true });
           handleClose();
+          return;
+        }
+        if (response.status === 422) {
+          // Ya hay un cargador libre: mostrar mensaje informativo y cerrar
+          setError(data.error || 'Ya existe un cargador libre en esta estación.');
+          setLoading(false);
+          return;
+        }
+        if (response.status === 503) {
+          setError('No se pudo consultar el estado de la estación. Inténtalo de nuevo en unos segundos.');
+          setLoading(false);
           return;
         }
         setError(data.error || 'Error al activar vigilancia');
