@@ -3,5 +3,11 @@
     "api/monitor.js": {
       "maxDuration": 10
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/check-chargers",
+      "schedule": "* * * * *"
+    }
+  ]
 }

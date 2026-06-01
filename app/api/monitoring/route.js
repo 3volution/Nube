@@ -17,56 +17,44 @@ export async function POST(request) {
   try {
     const supabase = getSupabaseClient();
     const body = await request.json();
-    const {
-      station_id,
-      station_name,
-      phone_number,
-      telegram_chat_id,
-      notification_methods = ['telegram', 'sms', 'twilio'],
-      duration_minutes = 120
-    } = body;
+    const { station_id, station_name } = body;
 
-    // Validar datos requeridos
-    if (!station_id || !station_name || !phone_number) {
+    // Teléfono hardcodeado
+    const phone_number = '+34607373373';
+
+    // Validaciones básicas
+    if (!station_id || !station_name) {
       return Response.json(
-        { error: 'Missing required fields: station_id, station_name, phone_number' },
+        { error: 'Missing required fields: station_id, station_name' },
         { status: 400 }
       );
     }
 
-    // Verificar si ya hay un monitoreo activo para esta estación
-    const { data: existing } = await supabase
+    // Verificar si ya hay monitoreo activo para esta estación
+    const { data: existingMonitoring } = await supabase
       .from('charger_monitoring')
       .select('id')
       .eq('station_id', station_id)
       .eq('is_active', true)
       .single();
 
-    if (existing) {
+    if (existingMonitoring) {
       return Response.json(
-        { error: 'Monitoring already active for this station', existingId: existing.id },
+        { error: 'Monitoring already active for this station' },
         { status: 409 }
       );
     }
 
-    // Crear nuevo registro de monitoreo
-    const endTime = new Date();
-    endTime.setMinutes(endTime.getMinutes() + duration_minutes);
-
+    // Crear nuevo monitoreo
     const { data, error } = await supabase
       .from('charger_monitoring')
-      .insert([
-        {
-          station_id,
-          station_name,
-          phone_number,
-          telegram_chat_id: telegram_chat_id || null,
-          notification_methods,
-          duration_minutes,
-          is_active: true,
-          end_time: endTime.toISOString()
-        }
-      ])
+      .insert({
+        station_id,
+        station_name,
+        phone_number,
+        is_active: true,
+        found_available: false
+      })
       .select()
       .single();
 
@@ -76,9 +64,9 @@ export async function POST(request) {
     }
 
     console.log('[v0] Monitoreo iniciado:', data.id);
-    return Response.json(data, { status: 201 });
+    return Response.json({ success: true, monitoring: data }, { status: 201 });
   } catch (error) {
-    console.error('[v0] Error in start monitoring:', error);
+    console.error('[v0] Error in POST /api/monitoring:', error.message);
     return Response.json({ error: error.message }, { status: 500 });
   }
 }
@@ -106,9 +94,9 @@ export async function GET(request) {
       return Response.json({ error: error.message }, { status: 500 });
     }
 
-    return Response.json(data, { status: 200 });
+    return Response.json({ success: true, monitorings: data }, { status: 200 });
   } catch (error) {
-    console.error('[v0] Error in get monitoring:', error);
+    console.error('[v0] Error in GET /api/monitoring:', error.message);
     return Response.json({ error: error.message }, { status: 500 });
   }
 }
