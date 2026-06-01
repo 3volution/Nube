@@ -105,20 +105,42 @@ export async function GET(request) {
           
           const message = `Hola Nacho. Un cargador ha quedado libre en ${watcher.station_name}. Repito: hay un cargador disponible en ${watcher.station_name}.`;
           
+          const MAX_RETRIES = 5;
+
           try {
             await sendNotification(message);
             callsMade++;
-            
-            // Marcar vigilancia como completada
+
+            // Llamada exitosa: marcar vigilancia como completada
             await supabase
               .from('active_watchers')
               .update({ status: 'completed' })
               .eq('id', watcher.id);
-            
+
             console.log(`[v0] Vigilancia completada para estación ${watcher.station_name}`);
           } catch (twilioError) {
-            // Si Twilio falla, NO actualizamos el estado - se reintentará en el próximo ciclo
-            console.error(`[v0] Error en llamada Twilio:`, twilioError);
+            console.error(`[v0] Error en llamada Twilio (intento ${watcher.retry_count + 1}/${MAX_RETRIES}):`, twilioError.message);
+
+            const newRetryCount = (watcher.retry_count || 0) + 1;
+
+            if (newRetryCount >= MAX_RETRIES) {
+              // Reintentos agotados: marcar como failed
+              await supabase
+                .from('active_watchers')
+                .update({ status: 'failed', retry_count: newRetryCount })
+                .eq('id', watcher.id);
+
+              console.log(`[v0] Vigilancia marcada como failed tras ${MAX_RETRIES} intentos - estación ${watcher.station_name}`);
+            } else {
+              // Incrementar retry_count y dejar status activo para reintentar el próximo minuto
+              // NO actualizamos last_connector_states para que la transición OCCUPIED->FREE persista
+              await supabase
+                .from('active_watchers')
+                .update({ retry_count: newRetryCount })
+                .eq('id', watcher.id);
+
+              console.log(`[v0] Reintento ${newRetryCount}/${MAX_RETRIES} programado para próximo ciclo`);
+            }
           }
         } else {
           // Actualizar last_connector_states para la próxima iteración

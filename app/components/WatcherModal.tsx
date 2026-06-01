@@ -2,21 +2,38 @@
 
 import { useState } from 'react';
 
-export function WatcherModal({ station, isOpen, onClose, onStart, onCancel, isWatching }) {
+interface Station {
+  id: string | number;
+  name: string;
+}
+
+interface WatcherPayload {
+  station_id: string | number;
+  already_active?: boolean;
+  [key: string]: unknown;
+}
+
+interface WatcherModalProps {
+  station: Station;
+  isOpen: boolean;
+  isWatching: boolean;
+  onClose: () => void;
+  onStart: (watcher: WatcherPayload) => void;
+  onCancel: (watcher: WatcherPayload) => void;
+}
+
+export function WatcherModal({ station, isOpen, onClose, onStart, onCancel, isWatching }: WatcherModalProps) {
   const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   const handleAuthenticate = () => {
-    const CORRECT_PIN = 'NACHO';
-
-    if (pin.toUpperCase() !== CORRECT_PIN) {
+    if (pin.toUpperCase() !== 'NACHO') {
       setError('Código incorrecto');
       setPin('');
       return;
     }
-
     setError(null);
     setIsAuthenticated(true);
   };
@@ -38,8 +55,8 @@ export function WatcherModal({ station, isOpen, onClose, onStart, onCancel, isWa
       const data = await response.json();
 
       if (!response.ok) {
-        // Si ya existe vigilancia activa, tratarlo como éxito
         if (response.status === 409) {
+          // Ya existe vigilancia activa — tratar como éxito
           onStart({ station_id: station.id, already_active: true });
           handleClose();
           return;
@@ -51,8 +68,7 @@ export function WatcherModal({ station, isOpen, onClose, onStart, onCancel, isWa
 
       onStart({ station_id: station.id, ...data.watcher });
       handleClose();
-    } catch (err) {
-      console.error('[v0] Error:', err);
+    } catch {
       setError('Error al conectar con el servidor');
       setLoading(false);
     }
@@ -77,8 +93,7 @@ export function WatcherModal({ station, isOpen, onClose, onStart, onCancel, isWa
 
       onCancel({ station_id: station.id });
       handleClose();
-    } catch (err) {
-      console.error('[v0] Error:', err);
+    } catch {
       setError('Error al conectar con el servidor');
       setLoading(false);
     }
@@ -97,11 +112,11 @@ export function WatcherModal({ station, isOpen, onClose, onStart, onCancel, isWa
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-slate-800 p-6 rounded-lg max-w-md w-full mx-4 border border-slate-700">
-        <h2 className="text-white text-xl font-bold mb-4">
+        <h2 className="text-white text-xl font-bold mb-1">
           {isWatching ? 'Vigilancia activa' : 'Vigilar estación'}
         </h2>
-        <p className="text-slate-400 text-sm mb-4">{station.name}</p>
-        
+        <p className="text-slate-400 text-sm mb-6">{station.name}</p>
+
         {!isAuthenticated ? (
           <>
             <p className="text-slate-300 text-sm mb-6">
@@ -109,14 +124,18 @@ export function WatcherModal({ station, isOpen, onClose, onStart, onCancel, isWa
             </p>
 
             <div className="mb-4">
-              <label className="block text-slate-300 text-sm font-semibold mb-2">Código de activación</label>
+              <label className="block text-slate-300 text-sm font-semibold mb-2">
+                Código de activación
+              </label>
               <div className="flex gap-2 justify-center mb-3">
                 {[0, 1, 2, 3, 4].map((index) => (
                   <div
                     key={index}
                     className="w-10 h-10 bg-slate-700 border border-slate-600 rounded flex items-center justify-center"
                   >
-                    {pin.length > index && <span className="text-white text-2xl">●</span>}
+                    {pin.length > index && (
+                      <span className="text-white text-xl">●</span>
+                    )}
                   </div>
                 ))}
               </div>
@@ -124,7 +143,7 @@ export function WatcherModal({ station, isOpen, onClose, onStart, onCancel, isWa
                 type="text"
                 value={pin}
                 onChange={(e) => setPin(e.target.value.slice(0, 5))}
-                maxLength="5"
+                maxLength={5}
                 className="w-full px-3 py-2 bg-slate-700 text-white rounded border border-slate-600 focus:border-blue-500 outline-none text-center tracking-wider"
                 autoFocus
               />
@@ -145,8 +164,8 @@ export function WatcherModal({ station, isOpen, onClose, onStart, onCancel, isWa
               </button>
               <button
                 onClick={handleAuthenticate}
-                className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded transition disabled:opacity-50 font-semibold"
                 disabled={pin.length !== 5}
+                className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded transition disabled:opacity-50 font-semibold"
               >
                 Continuar
               </button>
@@ -169,12 +188,11 @@ export function WatcherModal({ station, isOpen, onClose, onStart, onCancel, isWa
             <div className="flex flex-col gap-3">
               <button
                 onClick={handleCancelWatcher}
-                className="w-full px-4 py-3 bg-red-600 hover:bg-red-700 text-white rounded transition disabled:opacity-50 font-semibold"
                 disabled={loading}
+                className="w-full px-4 py-3 bg-red-600 hover:bg-red-700 text-white rounded transition disabled:opacity-50 font-semibold"
               >
                 {loading ? 'Cancelando...' : 'Cancelar vigilancia'}
               </button>
-
               <button
                 onClick={handleClose}
                 className="w-full px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded transition"
@@ -186,7 +204,7 @@ export function WatcherModal({ station, isOpen, onClose, onStart, onCancel, isWa
         ) : (
           <>
             <p className="text-slate-300 text-sm mb-6">
-              Recibirás una llamada telefónica cuando un cargador pase de ocupado a libre en esta estación.
+              Recibirás una llamada cuando un cargador pase de ocupado a libre en esta estación.
             </p>
 
             {error && (
@@ -198,12 +216,11 @@ export function WatcherModal({ station, isOpen, onClose, onStart, onCancel, isWa
             <div className="flex flex-col gap-3">
               <button
                 onClick={handleStartWatcher}
-                className="w-full px-4 py-3 bg-amber-600 hover:bg-amber-700 text-white rounded transition disabled:opacity-50 font-semibold"
                 disabled={loading}
+                className="w-full px-4 py-3 bg-amber-600 hover:bg-amber-700 text-white rounded transition disabled:opacity-50 font-semibold"
               >
                 {loading ? 'Activando...' : 'Activar vigilancia'}
               </button>
-
               <button
                 onClick={handleClose}
                 className="w-full px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded transition"
