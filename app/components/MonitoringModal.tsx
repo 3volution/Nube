@@ -61,12 +61,23 @@ export function MonitoringModal({ station, isOpen, onClose, onStart }) {
 
         <div className="mb-4">
           <label className="block text-slate-300 text-sm font-semibold mb-2">Código de activación</label>
+          <div className="flex gap-2 justify-center mb-3">
+            {[0, 1, 2, 3].map((index) => (
+              <div
+                key={index}
+                className="w-10 h-10 bg-slate-700 border border-slate-600 rounded flex items-center justify-center"
+              >
+                {pin.length > index && <span className="text-2xl">●</span>}
+              </div>
+            ))}
+          </div>
           <input
-            type="password"
+            type="text"
             value={pin}
-            onChange={(e) => setPin(e.target.value)}
-            placeholder="NACHO"
-            className="w-full px-3 py-2 bg-slate-700 text-white rounded border border-slate-600 focus:border-blue-500 outline-none text-center text-lg tracking-wider uppercase"
+            onChange={(e) => setPin(e.target.value.slice(0, 4))}
+            maxLength="4"
+            placeholder=""
+            className="w-full px-3 py-2 bg-slate-700 text-white rounded border border-slate-600 focus:border-blue-500 outline-none text-center tracking-wider opacity-0"
             disabled={loading}
           />
         </div>
@@ -88,7 +99,7 @@ export function MonitoringModal({ station, isOpen, onClose, onStart }) {
           <button
             onClick={handleStart}
             className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded transition disabled:opacity-50 font-semibold"
-            disabled={loading || pin.length === 0}
+            disabled={loading || pin.length !== 4}
           >
             {loading ? 'Activando...' : 'Activar'}
           </button>
