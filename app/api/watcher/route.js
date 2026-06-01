@@ -29,30 +29,57 @@ export async function POST(request) {
     // Verificar si ya existe vigilancia activa para esta estación
     const { data: existing } = await supabase
       .from('active_watchers')
-      .select('id')
+      .select('id, status')
       .eq('station_id', station_id)
       .eq('status', 'active')
-      .single();
+      .maybeSingle();
 
     if (existing) {
-      return Response.json({ error: 'Ya existe una vigilancia activa para esta estación' }, { status: 409 });
+      return Response.json(
+        { error: 'Ya existe una vigilancia activa para esta estación' },
+        { status: 409 }
+      );
     }
 
     // Consultar estado actual de los conectores en Electromaps
     const user = process.env.ELECTROMAPS_USER;
     const pass = process.env.ELECTROMAPS_PASS;
-    
+
     if (!user || !pass) {
       return Response.json({ error: 'Credenciales de Electromaps no configuradas' }, { status: 500 });
     }
 
     const conectores = await obtenerDatosEstacion(station_id, user, pass);
-    
+
+    // Escenario límite: sin conectores (respuesta vacía o error de Electromaps)
+    if (!conectores || conectores.length === 0) {
+      return Response.json(
+        { error: 'No se pudo obtener el estado de los conectores. Inténtalo de nuevo.' },
+        { status: 503 }
+      );
+    }
+
+    // Escenario: ya existe un cargador libre — vigilancia innecesaria
+    const hayLibre = conectores.some(c => c.status === 'FREE');
+    if (hayLibre) {
+      return Response.json(
+        { error: 'Ya existe un cargador libre en esta estación. No es necesario activar vigilancia.' },
+        { status: 422 }
+      );
+    }
+
     // Crear snapshot del estado actual de los conectores
     const connectorStates = {};
     conectores.forEach(c => {
       connectorStates[c.id] = c.status;
     });
+
+    // Eliminar filas anteriores (completed/cancelled/failed) para evitar conflicto UNIQUE
+    await supabase
+      .from('active_watchers')
+      .delete()
+      .eq('station_id', station_id)
+      .neq('status', 'active');
 
     // Insertar nueva vigilancia
     const { data: watcher, error: insertError } = await supabase
@@ -61,7 +88,8 @@ export async function POST(request) {
         station_id,
         station_name,
         last_connector_states: connectorStates,
-        status: 'active'
+        status: 'active',
+        retry_count: 0
       })
       .select()
       .single();
