@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { APP_VERSION } from '@/app/config/version';
-import { MonitoringModal } from '@/app/components/MonitoringModal';
-import { MonitoringBadge } from '@/app/components/MonitoringBadge';
+import { WatcherModal } from '@/app/components/WatcherModal';
 
 export default function MonitorPage() {
   const [stations, setStations] = useState([]);
@@ -44,8 +43,8 @@ export default function MonitorPage() {
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [error, setError] = useState(null);
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [monitoringModal, setMonitoringModal] = useState({ isOpen: false, station: null });
-  const [activeMonitorings, setActiveMonitorings] = useState({});
+  const [activeWatchers, setActiveWatchers] = useState({});
+  const [watcherModal, setWatcherModal] = useState({ isOpen: false, station: null });
 
   // Orden personalizado de estaciones
   const STATION_ORDER = {
@@ -283,30 +282,29 @@ export default function MonitorPage() {
     return () => clearInterval(interval);
   }, []);
 
-  // Cargar monitoreos activos desde Supabase al montar la página
+  // Cargar vigilancias activas desde Supabase al montar la página
   useEffect(() => {
-    const loadActiveMonitorings = async () => {
+    const loadActiveWatchers = async () => {
       try {
-        const response = await fetch('/api/monitoring/active');
+        const response = await fetch('/api/watcher');
         const data = await response.json();
         
-        if (data.activeMonitorings) {
-          // Convertir array de monitoreos a objeto { station_id: true }
+        if (data.watchers) {
+          // Convertir array de vigilancias a objeto { station_id: true }
           const activeMap = {};
-          data.activeMonitorings.forEach(monitoring => {
-            activeMap[monitoring.station_id] = true;
+          data.watchers.forEach(watcher => {
+            activeMap[watcher.station_id] = true;
           });
-          setActiveMonitorings(activeMap);
-          console.log('[v0] Monitoreos activos cargados:', activeMap);
+          setActiveWatchers(activeMap);
         }
       } catch (err) {
-        console.error('[v0] Error loading active monitorings:', err);
+        console.error('[v0] Error loading active watchers:', err);
       }
     };
 
-    loadActiveMonitorings();
-    // Recargar monitoreos activos cada 30 segundos
-    const interval = setInterval(loadActiveMonitorings, 30000);
+    loadActiveWatchers();
+    // Recargar vigilancias activas cada 30 segundos
+    const interval = setInterval(loadActiveWatchers, 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -545,7 +543,7 @@ export default function MonitorPage() {
                   <div
                     key={station.id}
                     className={`rounded-lg p-4 border transition ${
-                      activeMonitorings[station.id]
+                      activeWatchers[station.id]
                         ? 'bg-yellow-900/40 border-yellow-500 hover:border-yellow-400'
                         : 'bg-slate-700 border-slate-600 hover:border-slate-500'
                     }`}
@@ -553,23 +551,22 @@ export default function MonitorPage() {
                     <div className="flex justify-between items-start mb-4">
                       <div>
                         <h3 className="text-white font-bold text-2xl">{station.name}</h3>
-                        <MonitoringBadge 
-                          stationId={station.id}
-                          onMonitoringStatus={(isActive) => {
-                            setActiveMonitorings(prev => ({
-                              ...prev,
-                              [station.id]: isActive
-                            }));
-                          }}
-                        />
+                        {activeWatchers[station.id] && (
+                          <span className="inline-block mt-1 px-2 py-1 bg-yellow-600/30 text-yellow-300 text-xs rounded">
+                            Vigilancia activa
+                          </span>
+                        )}
                       </div>
                       <div className="flex flex-col gap-2 items-end">
                         <button
-                          onClick={() => setMonitoringModal({ isOpen: true, station })}
-                          className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-semibold transition"
-                          disabled={activeMonitorings[station.id]}
+                          onClick={() => setWatcherModal({ isOpen: true, station })}
+                          className={`px-3 py-2 rounded text-sm font-semibold transition ${
+                            activeWatchers[station.id]
+                              ? 'bg-yellow-600 hover:bg-yellow-700 text-white'
+                              : 'bg-amber-600 hover:bg-amber-700 text-white'
+                          }`}
                         >
-                          {activeMonitorings[station.id] ? 'Monitoreando...' : 'Monitorear'}
+                          {activeWatchers[station.id] ? 'Ver vigilancia' : 'Vigilar'}
                         </button>
                         <div className="flex items-center gap-3">
                           <div className="flex items-center gap-1 text-red-500 font-bold text-sm">
@@ -754,19 +751,27 @@ export default function MonitorPage() {
           </>
         )}
         
-        {/* Modal de Monitoreo */}
-        {monitoringModal.station && (
-          <MonitoringModal
-            station={monitoringModal.station}
-            isOpen={monitoringModal.isOpen}
-            onClose={() => setMonitoringModal({ isOpen: false, station: null })}
-            onStart={(monitoring) => {
-              setActiveMonitorings(prev => ({
+        {/* Modal de Vigilancia */}
+        {watcherModal.station && (
+          <WatcherModal
+            station={watcherModal.station}
+            isOpen={watcherModal.isOpen}
+            isWatching={activeWatchers[watcherModal.station?.id]}
+            onClose={() => setWatcherModal({ isOpen: false, station: null })}
+            onStart={(watcher) => {
+              setActiveWatchers(prev => ({
                 ...prev,
-                [monitoringModal.station.id]: true
+                [watcher.station_id]: true
               }));
-              setMonitoringModal({ isOpen: false, station: null });
-              console.log('[v0] Monitoreo iniciado:', monitoring);
+              setWatcherModal({ isOpen: false, station: null });
+            }}
+            onCancel={(watcher) => {
+              setActiveWatchers(prev => {
+                const newState = { ...prev };
+                delete newState[watcher.station_id];
+                return newState;
+              });
+              setWatcherModal({ isOpen: false, station: null });
             }}
           />
         )}
