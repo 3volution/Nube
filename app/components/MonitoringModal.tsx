@@ -47,6 +47,7 @@ export function MonitoringModal({ station, isOpen, onClose, onStart }) {
 
       console.log('[v0] Monitoreo iniciado:', data);
       onStart(data.monitoring);
+      setLoading(false);
       setPin('');
       setIsAuthenticated(false);
       onClose();
