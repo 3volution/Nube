@@ -8,9 +8,9 @@ export function MonitoringModal({ station, isOpen, onClose, onStart }) {
   const [error, setError] = useState(null);
 
   const handleStart = async () => {
-    const CORRECT_PIN = '0000';
+    const CORRECT_PIN = 'NACHO';
 
-    if (pin !== CORRECT_PIN) {
+    if (pin.toUpperCase() !== CORRECT_PIN) {
       setError('Código incorrecto');
       setPin('');
       return;
@@ -64,10 +64,9 @@ export function MonitoringModal({ station, isOpen, onClose, onStart }) {
           <input
             type="password"
             value={pin}
-            onChange={(e) => setPin(e.target.value.slice(0, 4))}
-            placeholder="0000"
-            maxLength="4"
-            className="w-full px-3 py-2 bg-slate-700 text-white rounded border border-slate-600 focus:border-blue-500 outline-none text-center text-2xl tracking-widest"
+            onChange={(e) => setPin(e.target.value)}
+            placeholder="NACHO"
+            className="w-full px-3 py-2 bg-slate-700 text-white rounded border border-slate-600 focus:border-blue-500 outline-none text-center text-lg tracking-wider uppercase"
             disabled={loading}
           />
         </div>
@@ -89,7 +88,7 @@ export function MonitoringModal({ station, isOpen, onClose, onStart }) {
           <button
             onClick={handleStart}
             className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded transition disabled:opacity-50 font-semibold"
-            disabled={loading || pin.length !== 4}
+            disabled={loading || pin.length === 0}
           >
             {loading ? 'Activando...' : 'Activar'}
           </button>
