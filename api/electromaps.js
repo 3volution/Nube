@@ -48,3 +48,5 @@ async function obtenerDatosEstacion(stationId, user, pass) {
 }
 
 module.exports = { obtenerTokenElectromaps, consultarEstado, obtenerDatosEstacion };
+
+export { obtenerTokenElectromaps, consultarEstado, obtenerDatosEstacion };
