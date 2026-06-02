@@ -7,25 +7,22 @@ export async function POST() {
     const fromNumber = process.env.TWILIO_PHONE_NUMBER;
     const toNumber = process.env.TWILIO_CALL_RECIPIENT;
 
-    // DIAGNÓSTICO TEMPORAL: Verificar qué variables están llegando
-    const diagnostics = {
+    // DIAGNÓSTICO DETALLADO TEMPORAL - RETORNO INMEDIATO
+    const diagnosticsDetailed = {
       accountSidConfigured: !!accountSid,
       authTokenConfigured: !!authToken,
       fromNumberConfigured: !!fromNumber,
       toNumberConfigured: !!toNumber,
-      environment: process.env.NODE_ENV || 'unknown'
+      accountSidLength: accountSid?.length || 0,
+      authTokenLength: authToken?.length || 0,
+      fromNumberLength: fromNumber?.length || 0,
+      toNumberLength: toNumber?.length || 0,
+      vercelEnv: process.env.VERCEL_ENV
     };
 
-    if (!accountSid || !authToken || !fromNumber || !toNumber) {
-      return Response.json(
-        { 
-          error: 'Twilio credentials not configured',
-          diagnostics: diagnostics,
-          message: 'Verifica que TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER y TWILIO_CALL_RECIPIENT estén configuradas'
-        },
-        { status: 500 }
-      );
-    }
+    // RETORNAR DIAGNÓSTICO INMEDIATO SIN CONTINUAR
+    return Response.json(diagnosticsDetailed);
+
 
     const client = twilio(accountSid, authToken);
 
