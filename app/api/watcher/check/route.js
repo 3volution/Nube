@@ -108,7 +108,7 @@ export async function GET(request) {
           const MAX_RETRIES = 5;
 
           try {
-            await sendNotification(message);
+            await sendNotification(process.env.TWILIO_CALL_RECIPIENT, watcher.station_name);
             callsMade++;
 
             // Llamada exitosa: marcar vigilancia como completada

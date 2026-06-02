@@ -149,6 +149,77 @@ El dashboard muestra logs categorizados:
 - **SUCCESS**: Consultas exitosas
 - **INFO**: Información general del sistema
 
+## Sistema de Vigilancia Inteligente (Watchers) - V11.3+
+
+El sistema incluye un módulo de vigilancia avanzado para detectar automáticamente cuando un cargador pasa de OCUPADO a LIBRE y realizar llamadas Twilio en tiempo real.
+
+### Configuración de Watchers
+
+1. **Activa una vigilancia en el dashboard** con el botón "Vigilar" en una estación
+2. **Introduce el código de acceso** (por defecto: "NACHO")
+3. **Sistema guarda snapshot** del estado actual de conectores
+4. **Cron externo monitorea** cada minuto (ver "Configurar Cron Externo para Watchers")
+
+### Configurar Cron Externo para Watchers
+
+Para que las vigilancias funcionen en tiempo real, necesitas configurar un cron job externo en [cron-job.org](https://cron-job.org):
+
+#### Pasos:
+1. Ve a [cron-job.org](https://cron-job.org)
+2. **Crea nuevo Cronjob**
+3. En el formulario:
+   - **URL**: `https://tudominio.vercel.app/api/watcher/check?secret=TU_CRON_SECRET`
+   - **Execution schedule**: Selecciona "Every 1 minute" (cada 1 minuto)
+   - **Timeout**: 30 segundos
+4. **Guarda** el cron job
+
+#### Ejemplo:
+```
+URL: https://myapp.vercel.app/api/watcher/check?secret=abcd1234efgh5678
+Schedule: Every 1 minute
+Timeout: 30s
+```
+
+### Variables de entorno requeridas para Watchers
+
+```env
+TWILIO_PHONE_NUMBER=+34607373373          # Número origen (desde dónde llama)
+TWILIO_CALL_RECIPIENT=+34612345678        # Número destino (a dónde llamas)
+TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxx
+TWILIO_AUTH_TOKEN=your_auth_token
+CRON_SECRET=tu_secreto_aleatorio
+```
+
+### Probar Watchers
+
+Usa el endpoint de diagnóstico para verificar que todo está configurado:
+
+```bash
+curl https://tudominio.vercel.app/api/watcher/diagnose
+```
+
+Respuesta esperada:
+```json
+{
+  "success": true,
+  "checks": {
+    "environment": { "status": "pass", "configured_vars": 13 },
+    "supabase": { "status": "pass", "connected": true },
+    "twilio": { "status": "pass", "configured": true },
+    "active_watchers": { "status": "pass", "count": 1 }
+  }
+}
+```
+
+## Logs del Sistema
+
+El dashboard muestra logs categorizados:
+
+- **ERROR**: Errores en la ejecución (Electromaps, Telegram, BD)
+- **CAMBIO**: Cambios detectados en conectores
+- **SUCCESS**: Consultas exitosas
+- **INFO**: Información general del sistema
+
 ## Troubleshooting
 
 ### El cron job no se ejecuta

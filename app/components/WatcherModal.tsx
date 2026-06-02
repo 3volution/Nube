@@ -27,6 +27,9 @@ export function WatcherModal({ station, isOpen, onClose, onStart, onCancel, isWa
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [twilioPhone, setTwilioPhone] = useState(process.env.NEXT_PUBLIC_TWILIO_CALL_RECIPIENT || '');
+  const [twilioLoading, setTwilioLoading] = useState(false);
+  const [twilioResult, setTwilioResult] = useState<{ status: 'success' | 'error'; message: string } | null>(null);
 
   const handleAuthenticate = () => {
     if (pin.toUpperCase() !== 'NACHO') {
@@ -36,6 +39,49 @@ export function WatcherModal({ station, isOpen, onClose, onStart, onCancel, isWa
     }
     setError(null);
     setIsAuthenticated(true);
+  };
+
+  const handleTestTwilio = async () => {
+    if (!twilioPhone.trim()) {
+      setTwilioResult({ status: 'error', message: 'Ingresa un número de teléfono válido' });
+      return;
+    }
+
+    setTwilioLoading(true);
+    setTwilioResult(null);
+
+    try {
+      const response = await fetch('/api/twilio/test-call', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone_number: twilioPhone,
+          station_name: station.name
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setTwilioResult({
+          status: 'error',
+          message: data.error || `Error: ${response.status}`
+        });
+        return;
+      }
+
+      setTwilioResult({
+        status: 'success',
+        message: 'Llamada enviada. Deberías recibir una llamada en tu teléfono en unos segundos.'
+      });
+    } catch {
+      setTwilioResult({
+        status: 'error',
+        message: 'Error al conectar con el servidor'
+      });
+    } finally {
+      setTwilioLoading(false);
+    }
   };
 
   const handleStartWatcher = async () => {
@@ -122,11 +168,46 @@ export function WatcherModal({ station, isOpen, onClose, onStart, onCancel, isWa
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-slate-800 p-6 rounded-lg max-w-md w-full mx-4 border border-slate-700">
+      <div className="bg-slate-800 p-6 rounded-lg max-w-md w-full mx-4 border border-slate-700 max-h-[90vh] overflow-y-auto">
         <h2 className="text-white text-xl font-bold mb-1">
           {isWatching ? 'Vigilancia activa' : 'Vigilar estación'}
         </h2>
         <p className="text-slate-400 text-sm mb-6">{station.name}</p>
+
+        {/* SECCIÓN PRUEBA TWILIO - SIEMPRE VISIBLE */}
+        <div className="mb-6 p-4 bg-slate-700 border border-slate-600 rounded">
+          <h3 className="text-slate-100 text-sm font-semibold mb-3">Prueba de Notificación Twilio</h3>
+          
+          <label className="block text-slate-300 text-xs font-medium mb-2">
+            Número destino
+          </label>
+          <input
+            type="tel"
+            value={twilioPhone}
+            onChange={(e) => setTwilioPhone(e.target.value)}
+            placeholder="+34612345678"
+            className="w-full px-3 py-2 bg-slate-600 text-white rounded border border-slate-500 focus:border-blue-500 outline-none text-sm mb-3"
+            disabled={twilioLoading}
+          />
+
+          <button
+            onClick={handleTestTwilio}
+            disabled={twilioLoading || !twilioPhone}
+            className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-semibold transition disabled:opacity-50 mb-2"
+          >
+            {twilioLoading ? 'Enviando...' : '▶ Probar Llamada'}
+          </button>
+
+          {twilioResult && (
+            <div className={`p-2 rounded text-xs ${
+              twilioResult.status === 'success'
+                ? 'bg-green-900/50 border border-green-600 text-green-200'
+                : 'bg-red-900/50 border border-red-600 text-red-200'
+            }`}>
+              {twilioResult.status === 'success' ? '✓' : '✗'} {twilioResult.message}
+            </div>
+          )}
+        </div>
 
         {!isAuthenticated ? (
           <>
