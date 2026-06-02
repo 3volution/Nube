@@ -18,23 +18,44 @@ function getSupabaseClient() {
  */
 export async function POST(request) {
   try {
-    const { station_id, station_name } = await request.json();
+    console.log('[v0] POST /api/watcher - Iniciando');
+    
+    let body;
+    try {
+      body = await request.json();
+      console.log('[v0] Body recibido:', body);
+    } catch (parseError) {
+      console.error('[v0] Error parseando JSON:', parseError.message);
+      return Response.json({ error: 'Body debe ser JSON válido', detail: parseError.message }, { status: 400 });
+    }
+
+    const { station_id, station_name } = body;
+    console.log('[v0] Extrayendo: station_id=', station_id, 'station_name=', station_name);
 
     if (!station_id || !station_name) {
       return Response.json({ error: 'station_id y station_name son requeridos' }, { status: 400 });
     }
 
+    console.log('[v0] Creando cliente Supabase');
     const supabase = getSupabaseClient();
+    console.log('[v0] Cliente Supabase creado');
 
     // Verificar si ya existe vigilancia activa para esta estación
-    const { data: existing } = await supabase
+    console.log('[v0] Buscando vigilancias existentes para station_id=', station_id);
+    const { data: existing, error: existingError } = await supabase
       .from('active_watchers')
       .select('id, status')
       .eq('station_id', station_id)
       .eq('status', 'active')
       .maybeSingle();
 
+    if (existingError) {
+      console.error('[v0] Error buscando existentes:', existingError);
+      return Response.json({ error: 'Error en BD: ' + existingError.message }, { status: 500 });
+    }
+
     if (existing) {
+      console.log('[v0] Vigilancia activa ya existe');
       return Response.json(
         { error: 'Ya existe una vigilancia activa para esta estación' },
         { status: 409 }
@@ -46,65 +67,83 @@ export async function POST(request) {
     const pass = process.env.ELECTROMAPS_PASS;
 
     if (!user || !pass) {
+      console.error('[v0] Credenciales Electromaps faltantes');
       return Response.json({ error: 'Credenciales de Electromaps no configuradas' }, { status: 500 });
     }
 
-    const conectores = await obtenerDatosEstacion(station_id, user, pass);
+    console.log('[v0] Consultando Electromaps para station_id=', station_id);
+    try {
+      const conectores = await obtenerDatosEstacion(station_id, user, pass);
+      console.log('[v0] Conectores obtenidos:', conectores?.length || 0, 'items');
 
-    // Escenario límite: sin conectores (respuesta vacía o error de Electromaps)
-    if (!conectores || conectores.length === 0) {
-      return Response.json(
-        { error: 'No se pudo obtener el estado de los conectores. Inténtalo de nuevo.' },
-        { status: 503 }
-      );
+      // Escenario límite: sin conectores (respuesta vacía o error de Electromaps)
+      if (!conectores || conectores.length === 0) {
+        console.warn('[v0] Sin conectores para estación', station_id);
+        return Response.json(
+          { error: 'No se pudo obtener el estado de los conectores. Inténtalo de nuevo.' },
+          { status: 503 }
+        );
+      }
+
+      // Escenario: ya existe un cargador libre — vigilancia innecesaria
+      const hayLibre = conectores.some(c => c.status === 'FREE');
+      if (hayLibre) {
+        console.log('[v0] Ya hay cargador libre en estación', station_id);
+        return Response.json(
+          { error: 'Ya existe un cargador libre en esta estación. No es necesario activar vigilancia.' },
+          { status: 422 }
+        );
+      }
+
+      // Crear snapshot del estado actual de los conectores
+      const connectorStates = {};
+      conectores.forEach(c => {
+        connectorStates[c.id] = c.status;
+      });
+
+      console.log('[v0] Limpiando vigilancias anteriores para station_id=', station_id);
+      // Eliminar filas anteriores (completed/cancelled/failed) para evitar conflicto UNIQUE
+      const { error: deleteError } = await supabase
+        .from('active_watchers')
+        .delete()
+        .eq('station_id', station_id)
+        .neq('status', 'active');
+
+      if (deleteError) {
+        console.error('[v0] Error eliminando vigilancias anteriores:', deleteError);
+        // Continuamos aunque falle delete
+      }
+
+      console.log('[v0] Insertando nueva vigilancia');
+      // Insertar nueva vigilancia
+      const { data: watcher, error: insertError } = await supabase
+        .from('active_watchers')
+        .insert({
+          station_id,
+          station_name,
+          last_connector_states: connectorStates,
+          status: 'active',
+          retry_count: 0
+        })
+        .select()
+        .single();
+
+      if (insertError) {
+        console.error('[v0] Error creando vigilancia:', insertError);
+        return Response.json({ error: 'Error BD: ' + insertError.message, code: insertError.code }, { status: 500 });
+      }
+
+      console.log('[v0] Vigilancia creada exitosamente:', watcher?.id);
+      return Response.json({ success: true, watcher }, { status: 201 });
+
+    } catch (electromapsError) {
+      console.error('[v0] Error en Electromaps:', electromapsError.message);
+      return Response.json({ error: 'Error Electromaps: ' + electromapsError.message }, { status: 503 });
     }
-
-    // Escenario: ya existe un cargador libre — vigilancia innecesaria
-    const hayLibre = conectores.some(c => c.status === 'FREE');
-    if (hayLibre) {
-      return Response.json(
-        { error: 'Ya existe un cargador libre en esta estación. No es necesario activar vigilancia.' },
-        { status: 422 }
-      );
-    }
-
-    // Crear snapshot del estado actual de los conectores
-    const connectorStates = {};
-    conectores.forEach(c => {
-      connectorStates[c.id] = c.status;
-    });
-
-    // Eliminar filas anteriores (completed/cancelled/failed) para evitar conflicto UNIQUE
-    await supabase
-      .from('active_watchers')
-      .delete()
-      .eq('station_id', station_id)
-      .neq('status', 'active');
-
-    // Insertar nueva vigilancia
-    const { data: watcher, error: insertError } = await supabase
-      .from('active_watchers')
-      .insert({
-        station_id,
-        station_name,
-        last_connector_states: connectorStates,
-        status: 'active',
-        retry_count: 0
-      })
-      .select()
-      .single();
-
-    if (insertError) {
-      console.error('[v0] Error creando vigilancia:', insertError);
-      return Response.json({ error: insertError.message }, { status: 500 });
-    }
-
-    console.log(`[v0] Vigilancia creada para estación ${station_name} (${station_id})`);
-    return Response.json({ success: true, watcher }, { status: 201 });
 
   } catch (error) {
-    console.error('[v0] Error en POST /api/watcher:', error);
-    return Response.json({ error: error.message }, { status: 500 });
+    console.error('[v0] Error en POST /api/watcher (nivel superior):', error);
+    return Response.json({ error: error.message, stack: error.stack }, { status: 500 });
   }
 }
 
