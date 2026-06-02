@@ -7,22 +7,20 @@ export async function POST() {
     const fromNumber = process.env.TWILIO_PHONE_NUMBER;
     const toNumber = process.env.TWILIO_CALL_RECIPIENT;
 
-    // DIAGNÓSTICO DETALLADO TEMPORAL - RETORNO INMEDIATO
-    const diagnosticsDetailed = {
-      accountSidConfigured: !!accountSid,
-      authTokenConfigured: !!authToken,
-      fromNumberConfigured: !!fromNumber,
-      toNumberConfigured: !!toNumber,
-      accountSidLength: accountSid?.length || 0,
-      authTokenLength: authToken?.length || 0,
-      fromNumberLength: fromNumber?.length || 0,
-      toNumberLength: toNumber?.length || 0,
-      vercelEnv: process.env.VERCEL_ENV
-    };
-
-    // RETORNAR DIAGNÓSTICO INMEDIATO SIN CONTINUAR
-    return Response.json(diagnosticsDetailed);
-
+    if (!accountSid || !authToken || !fromNumber || !toNumber) {
+      return Response.json(
+        { 
+          error: 'Twilio credentials not configured',
+          missing: {
+            accountSid: !accountSid,
+            authToken: !authToken,
+            fromNumber: !fromNumber,
+            toNumber: !toNumber
+          }
+        },
+        { status: 500 }
+      );
+    }
 
     const client = twilio(accountSid, authToken);
 
@@ -34,16 +32,41 @@ export async function POST() {
 
     console.log('[v0] Test call initiated:', call.sid);
 
+    // RESPUESTA COMPLETA DE TWILIO - INSTRUMENTACIÓN TEMPORAL
     return Response.json({ 
-      success: true, 
+      success: true,
       message: 'Llamada de prueba iniciada',
       callSid: call.sid,
-      diagnostics: diagnostics
+      callStatus: call.status,
+      callTo: call.to,
+      callFrom: call.from,
+      callAccountSid: call.accountSid,
+      callDateCreated: call.dateCreated,
+      callDateUpdated: call.dateUpdated,
+      callDirection: call.direction,
+      callDuration: call.duration,
+      callPrice: call.price,
+      callPriceUnit: call.priceUnit,
+      callSid: call.sid
     });
   } catch (error) {
     console.error('[v0] Error making test call:', error);
+    
+    // RESPUESTA COMPLETA DEL ERROR - INSTRUMENTACIÓN TEMPORAL
     return Response.json(
-      { error: error.message || 'Error al hacer la llamada' },
+      { 
+        success: false,
+        error: error.message || 'Error al hacer la llamada',
+        errorCode: error.code,
+        errorStatus: error.status,
+        errorMessage: error.message,
+        moreInfo: error.moreInfo,
+        errorDetails: {
+          name: error.name,
+          statusCode: error.statusCode,
+          message: error.message
+        }
+      },
       { status: 500 }
     );
   }
