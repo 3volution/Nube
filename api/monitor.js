@@ -344,8 +344,13 @@ export default async function handler(req, res) {
               notificacionesEnviadas++;
             }
           } else {
-            // Estado NO CAMBIÓ o es primer registro - usar timestamp escalonado
-            con.status_changed_at = offsetTimestampISO;
+            // Estado NO CAMBIÓ - PRESERVAR timestamp anterior si existe
+            if (prev && prev.status_changed_at) {
+              con.status_changed_at = prev.status_changed_at;
+            } else {
+              // Primer registro: usar timestamp actual
+              con.status_changed_at = offsetTimestampISO;
+            }
           }
         }
         
