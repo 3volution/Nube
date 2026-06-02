@@ -7,9 +7,20 @@ export async function POST() {
     const fromNumber = process.env.TWILIO_PHONE_NUMBER;
     const toNumber = '+34607373373';
 
+    // DIAGNÓSTICO TEMPORAL: Verificar qué variables están llegando
+    const diagnostics = {
+      accountSidConfigured: !!accountSid,
+      authTokenConfigured: !!authToken,
+      fromNumberConfigured: !!fromNumber,
+      environment: process.env.NODE_ENV || 'unknown'
+    };
+
     if (!accountSid || !authToken || !fromNumber) {
       return Response.json(
-        { error: 'Twilio credentials not configured' },
+        { 
+          error: 'Twilio credentials not configured',
+          diagnostics: diagnostics
+        },
         { status: 500 }
       );
     }
@@ -27,7 +38,8 @@ export async function POST() {
     return Response.json({ 
       success: true, 
       message: 'Llamada de prueba iniciada',
-      callSid: call.sid 
+      callSid: call.sid,
+      diagnostics: diagnostics
     });
   } catch (error) {
     console.error('[v0] Error making test call:', error);
