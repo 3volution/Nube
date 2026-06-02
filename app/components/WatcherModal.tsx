@@ -174,41 +174,6 @@ export function WatcherModal({ station, isOpen, onClose, onStart, onCancel, isWa
         </h2>
         <p className="text-slate-400 text-sm mb-6">{station.name}</p>
 
-        {/* SECCIÓN PRUEBA TWILIO - SIEMPRE VISIBLE */}
-        <div className="mb-6 p-4 bg-slate-700 border border-slate-600 rounded">
-          <h3 className="text-slate-100 text-sm font-semibold mb-3">Prueba de Notificación Twilio</h3>
-          
-          <label className="block text-slate-300 text-xs font-medium mb-2">
-            Número destino
-          </label>
-          <input
-            type="tel"
-            value={twilioPhone}
-            onChange={(e) => setTwilioPhone(e.target.value)}
-            placeholder="+34612345678"
-            className="w-full px-3 py-2 bg-slate-600 text-white rounded border border-slate-500 focus:border-blue-500 outline-none text-sm mb-3"
-            disabled={twilioLoading}
-          />
-
-          <button
-            onClick={handleTestTwilio}
-            disabled={twilioLoading || !twilioPhone}
-            className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-semibold transition disabled:opacity-50 mb-2"
-          >
-            {twilioLoading ? 'Enviando...' : '▶ Probar Llamada'}
-          </button>
-
-          {twilioResult && (
-            <div className={`p-2 rounded text-xs ${
-              twilioResult.status === 'success'
-                ? 'bg-green-900/50 border border-green-600 text-green-200'
-                : 'bg-red-900/50 border border-red-600 text-red-200'
-            }`}>
-              {twilioResult.status === 'success' ? '✓' : '✗'} {twilioResult.message}
-            </div>
-          )}
-        </div>
-
         {!isAuthenticated ? (
           <>
             <p className="text-slate-300 text-sm mb-6">
@@ -271,6 +236,41 @@ export function WatcherModal({ station, isOpen, onClose, onStart, onCancel, isWa
               </p>
             </div>
 
+            {/* SECCIÓN PRUEBA TWILIO - SOLO DESPUÉS DE AUTENTICARSE */}
+            <div className="mb-6 p-4 bg-slate-700 border border-slate-600 rounded">
+              <h3 className="text-slate-100 text-sm font-semibold mb-3">Prueba de Notificación Twilio</h3>
+              
+              <label className="block text-slate-300 text-xs font-medium mb-2">
+                Número destino
+              </label>
+              <input
+                type="tel"
+                value={twilioPhone}
+                onChange={(e) => setTwilioPhone(e.target.value)}
+                placeholder="+34612345678"
+                className="w-full px-3 py-2 bg-slate-600 text-white rounded border border-slate-500 focus:border-blue-500 outline-none text-sm mb-3"
+                disabled={twilioLoading}
+              />
+
+              <button
+                onClick={handleTestTwilio}
+                disabled={twilioLoading || !twilioPhone}
+                className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-semibold transition disabled:opacity-50 mb-2"
+              >
+                {twilioLoading ? 'Enviando...' : '▶ Probar Llamada'}
+              </button>
+
+              {twilioResult && (
+                <div className={`p-2 rounded text-xs ${
+                  twilioResult.status === 'success'
+                    ? 'bg-green-900/50 border border-green-600 text-green-200'
+                    : 'bg-red-900/50 border border-red-600 text-red-200'
+                }`}>
+                  {twilioResult.status === 'success' ? '✓' : '✗'} {twilioResult.message}
+                </div>
+              )}
+            </div>
+
             {error && (
               <div className="mb-4 p-3 bg-red-900/50 border border-red-700 text-red-200 rounded text-sm">
                 {error}
@@ -298,6 +298,41 @@ export function WatcherModal({ station, isOpen, onClose, onStart, onCancel, isWa
             <p className="text-slate-300 text-sm mb-6">
               Recibirás una llamada cuando un cargador pase de ocupado a libre en esta estación.
             </p>
+
+            {/* SECCIÓN PRUEBA TWILIO - SOLO DESPUÉS DE AUTENTICARSE */}
+            <div className="mb-6 p-4 bg-slate-700 border border-slate-600 rounded">
+              <h3 className="text-slate-100 text-sm font-semibold mb-3">Prueba de Notificación Twilio</h3>
+              
+              <label className="block text-slate-300 text-xs font-medium mb-2">
+                Número destino
+              </label>
+              <input
+                type="tel"
+                value={twilioPhone}
+                onChange={(e) => setTwilioPhone(e.target.value)}
+                placeholder="+34612345678"
+                className="w-full px-3 py-2 bg-slate-600 text-white rounded border border-slate-500 focus:border-blue-500 outline-none text-sm mb-3"
+                disabled={twilioLoading}
+              />
+
+              <button
+                onClick={handleTestTwilio}
+                disabled={twilioLoading || !twilioPhone}
+                className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-semibold transition disabled:opacity-50 mb-2"
+              >
+                {twilioLoading ? 'Enviando...' : '▶ Probar Llamada'}
+              </button>
+
+              {twilioResult && (
+                <div className={`p-2 rounded text-xs ${
+                  twilioResult.status === 'success'
+                    ? 'bg-green-900/50 border border-green-600 text-green-200'
+                    : 'bg-red-900/50 border border-red-600 text-red-200'
+                }`}>
+                  {twilioResult.status === 'success' ? '✓' : '✗'} {twilioResult.message}
+                </div>
+              )}
+            </div>
 
             {error && (
               <div className="mb-4 p-3 bg-red-900/50 border border-red-700 text-red-200 rounded text-sm">
