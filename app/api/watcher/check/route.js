@@ -22,7 +22,7 @@ function getSupabaseClient() {
  * 1. Si no hay vigilancias activas -> retorna sin consultar Electromaps
  * 2. Para cada vigilancia activa -> consulta Electromaps
  * 3. Compara estado actual vs last_connector_states
- * 4. Si algun conector paso de OCCUPIED -> FREE -> llama Twilio
+ * 4. Si algun conector paso de OCCUPIED -> (FREE o AVAILABLE) -> llama Twilio
  * 5. Actualiza last_connector_states para la proxima iteracion
  */
 export async function GET(request) {
@@ -96,7 +96,7 @@ export async function GET(request) {
 
           console.log(`[v0] Conector ${connectorId}: ${previousStatus || 'N/A'} → ${currentStatus}`);
 
-          if (previousStatus === 'OCCUPIED' && currentStatus === 'FREE') {
+          if (previousStatus === 'OCCUPIED' && (currentStatus === 'FREE' || currentStatus === 'AVAILABLE')) {
             console.log(`[v0] ✅ CONECTOR LIBERADO: ${connectorId}`);
             freedConnectorFound = true;
             break;
