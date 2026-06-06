@@ -1,15 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
 import { obtenerDatosEstacion } from '@/api/electromaps';
-import { sendNotification } from '@/app/services/notification-service';
+import { sendCallAlert } from '@/app/services/notification-service';
 
 function getSupabaseClient() {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!url || !key) {
-    throw new Error('Supabase environment variables not configured');
-  }
-
+  if (!url || !key) throw new Error('Supabase environment variables not configured');
   return createClient(url, key);
 }
 
@@ -22,16 +18,19 @@ function getSupabaseClient() {
  * 1. Sin vigilancias activas → retorna sin consultar Electromaps
  * 2. Para cada vigilancia activa → consulta Electromaps
  * 3. Compara estado actual vs last_connector_states
- * 4. Si algún conector pasó de OCCUPIED → FREE o AVAILABLE → llama Twilio
- * 5. Actualiza last_connector_states para la siguiente iteración
+ * 4. Si OCCUPIED → FREE/AVAILABLE y NO existe alerta 'ringing' activa:
+ *    - Inserta fila en watcher_call_events (status='ringing', attempt=1)
+ *    - Lanza llamada Twilio con timeout=14 y statusCallback
+ * 5. Si ya existe alerta 'ringing' → no hace nada (StatusCallback gestiona reintentos)
+ * 6. Si no hay liberación → actualiza last_connector_states
  */
 export async function GET(request) {
   try {
-    const verelCronHeader = request.headers.get('x-vercel-cron');
+    const vercelCronHeader = request.headers.get('x-vercel-cron');
     const { searchParams } = new URL(request.url);
     const secret = searchParams.get('secret');
 
-    const isFromVercelCron = verelCronHeader === 'true';
+    const isFromVercelCron = vercelCronHeader === 'true';
     const isAuthorizedCronJob = secret === process.env.CRON_SECRET;
 
     if (!isFromVercelCron && !isAuthorizedCronJob) {
@@ -62,95 +61,83 @@ export async function GET(request) {
     }
 
     let callsMade = 0;
-    const MAX_RETRIES = 5;
 
     for (const watcher of watchers) {
       try {
         const conectores = await obtenerDatosEstacion(watcher.station_id, user, pass);
 
-        if (!conectores || conectores.length === 0) {
-          continue;
-        }
+        if (!conectores || conectores.length === 0) continue;
 
         const currentStates = {};
-        conectores.forEach(c => {
-          currentStates[c.id] = c.status;
-        });
+        conectores.forEach(c => { currentStates[c.id] = c.status; });
 
         const previousStates = watcher.last_connector_states || {};
-        let freedConnectorFound = false;
+
+        // Buscar conector liberado: OCCUPIED → FREE o AVAILABLE
+        let freedConnectorId = null;
+        let freedPrevStatus = null;
+        let freedCurrStatus = null;
 
         for (const connectorId of Object.keys(currentStates)) {
-          const previousStatus = previousStates[connectorId];
-          const currentStatus = currentStates[connectorId];
-
-          // Solo detecta liberación real: OCCUPIED → FREE o AVAILABLE
-          // No genera llamada para: AVAILABLE→AVAILABLE, FREE→AVAILABLE,
-          // AVAILABLE→FREE, OUT_OF_SERVICE→AVAILABLE
-          if (previousStatus === 'OCCUPIED' && (currentStatus === 'FREE' || currentStatus === 'AVAILABLE')) {
-            freedConnectorFound = true;
+          const prev = previousStates[connectorId];
+          const curr = currentStates[connectorId];
+          if (prev === 'OCCUPIED' && (curr === 'FREE' || curr === 'AVAILABLE')) {
+            freedConnectorId = connectorId;
+            freedPrevStatus = prev;
+            freedCurrStatus = curr;
             break;
           }
         }
 
-        if (freedConnectorFound) {
-          // Identificar el conector liberado para el registro
-          let freedConnectorId = null;
-          let freedPrevStatus = null;
-          let freedCurrStatus = null;
-          for (const connectorId of Object.keys(currentStates)) {
-            const prev = previousStates[connectorId];
-            const curr = currentStates[connectorId];
-            if (prev === 'OCCUPIED' && (curr === 'FREE' || curr === 'AVAILABLE')) {
-              freedConnectorId = connectorId;
-              freedPrevStatus = prev;
-              freedCurrStatus = curr;
-              break;
-            }
+        if (freedConnectorId) {
+          // Comprobar si ya existe una alerta activa (ringing) para este watcher
+          const { data: existingAlert } = await supabase
+            .from('watcher_call_events')
+            .select('id')
+            .eq('watcher_id', watcher.id)
+            .eq('status', 'ringing')
+            .maybeSingle();
+
+          if (existingAlert) {
+            // Ya hay un ciclo de reintentos activo gestionado por StatusCallback
+            // No insertar nueva alerta ni lanzar nueva llamada
+            continue;
           }
 
-          try {
-            const notifResult = await sendNotification(process.env.TWILIO_CALL_RECIPIENT, watcher.station_name);
+          // Primera detección: insertar alerta y lanzar llamada 1
+          const callResult = await sendCallAlert({
+            phoneNumber: process.env.TWILIO_CALL_RECIPIENT,
+            stationName: watcher.station_name,
+            attempt: 1,
+          });
 
-            if (notifResult.success) {
-              callsMade++;
-            } else {
-              console.error('watcher/check - Twilio falló:', notifResult.error);
-            }
+          if (callResult.success) {
+            callsMade++;
 
-            // Registrar el evento de llamada para el modal de UI
             await supabase
               .from('watcher_call_events')
               .insert({
                 watcher_id: watcher.id,
                 station_name: watcher.station_name,
                 station_id: String(watcher.station_id),
-                connector_id: freedConnectorId ? String(freedConnectorId) : null,
-                previous_status: freedPrevStatus,
-                current_status: freedCurrStatus,
-                acknowledged: false
-              })
-              .catch(err => console.error('watcher/check - error al insertar call event:', err.message));
+                call_attempt: 1,
+                max_attempts: 5,
+                status: 'ringing',
+                call_sid: callResult.callSid,
+                last_attempt_at: new Date().toISOString(),
+                trigger_connector_id: String(freedConnectorId),
+                trigger_previous_status: freedPrevStatus,
+                trigger_current_status: freedCurrStatus,
+                acknowledged: false,
+              });
 
-            await supabase
-              .from('active_watchers')
-              .update({ status: 'completed' })
-              .eq('id', watcher.id);
-
-          } catch (twilioError) {
-            console.error(`watcher/check - excepción Twilio (intento ${(watcher.retry_count || 0) + 1}/${MAX_RETRIES}):`, twilioError.message);
-
-            const newRetryCount = (watcher.retry_count || 0) + 1;
-
-            await supabase
-              .from('active_watchers')
-              .update({
-                status: newRetryCount >= MAX_RETRIES ? 'failed' : 'active',
-                retry_count: newRetryCount
-              })
-              .eq('id', watcher.id);
+            // El watcher permanece 'active' hasta confirmed o expired
+          } else {
+            console.error('watcher/check - Twilio falló en llamada 1:', callResult.error);
           }
+
         } else {
+          // Sin liberación detectada: actualizar estados para siguiente iteración
           await supabase
             .from('active_watchers')
             .update({ last_connector_states: currentStates })
