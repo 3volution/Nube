@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { useEffect, useState } from 'react';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 interface CallEvent {
   id: number;
@@ -29,29 +29,30 @@ function formatCalledAt(isoString: string): string {
 export function CallEventModal() {
   const [event, setEvent] = useState<CallEvent | null>(null);
   const [acknowledging, setAcknowledging] = useState(false);
+  const [supabase, setSupabase] = useState<SupabaseClient | null>(null);
 
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+  // Inicializar cliente solo en el cliente (no en SSR)
+  useEffect(() => {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!url || !key) return;
+    setSupabase(createClient(url, key));
+  }, []);
 
-  const loadPendingEvent = useCallback(async () => {
-    const { data, error } = await supabase
+  useEffect(() => {
+    if (!supabase) return;
+
+    // Carga inicial: busca si hay algún evento pendiente de acknowledger
+    supabase
       .from('watcher_call_events')
       .select('*')
       .eq('acknowledged', false)
       .order('called_at', { ascending: false })
       .limit(1)
-      .maybeSingle();
-
-    if (!error && data) {
-      setEvent(data);
-    }
-  }, []);
-
-  useEffect(() => {
-    // Carga inicial
-    loadPendingEvent();
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (!error && data) setEvent(data);
+      });
 
     // Suscripción Realtime: detecta nuevas filas en watcher_call_events
     const channel = supabase
@@ -61,11 +62,13 @@ export function CallEventModal() {
         {
           event: 'INSERT',
           schema: 'public',
-          table: 'watcher_call_events',
-          filter: 'acknowledged=eq.false'
+          table: 'watcher_call_events'
         },
         (payload) => {
-          setEvent(payload.new as CallEvent);
+          const newEvent = payload.new as CallEvent;
+          if (!newEvent.acknowledged) {
+            setEvent(newEvent);
+          }
         }
       )
       .subscribe();
@@ -73,10 +76,10 @@ export function CallEventModal() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [loadPendingEvent]);
+  }, [supabase]);
 
   const handleAcknowledge = async () => {
-    if (!event) return;
+    if (!event || !supabase) return;
     setAcknowledging(true);
 
     await supabase
