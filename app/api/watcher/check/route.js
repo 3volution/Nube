@@ -160,6 +160,12 @@ export async function GET(request) {
     }
 
     console.log(`[v0] watcher/check finalizado - Total llamadas hechas: ${callsMade}`);
+    
+    return Response.json({ 
+      success: true, 
+      checked: watchers.length, 
+      calls_made: callsMade 
+    }, { status: 200 });
 
   } catch (error) {
     console.error('Error en watcher/check:', error.message);
