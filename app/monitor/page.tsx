@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { APP_VERSION } from '@/app/config/version';
 import { WatcherModal } from '@/app/components/WatcherModal';
+import { CallEventModal } from '@/app/components/CallEventModal';
 
 export default function MonitorPage() {
   const [stations, setStations] = useState([]);
@@ -471,6 +472,7 @@ export default function MonitorPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 p-6">
+      <CallEventModal />
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">

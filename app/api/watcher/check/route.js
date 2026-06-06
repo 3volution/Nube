@@ -94,6 +94,21 @@ export async function GET(request) {
         }
 
         if (freedConnectorFound) {
+          // Identificar el conector liberado para el registro
+          let freedConnectorId = null;
+          let freedPrevStatus = null;
+          let freedCurrStatus = null;
+          for (const connectorId of Object.keys(currentStates)) {
+            const prev = previousStates[connectorId];
+            const curr = currentStates[connectorId];
+            if (prev === 'OCCUPIED' && (curr === 'FREE' || curr === 'AVAILABLE')) {
+              freedConnectorId = connectorId;
+              freedPrevStatus = prev;
+              freedCurrStatus = curr;
+              break;
+            }
+          }
+
           try {
             const notifResult = await sendNotification(process.env.TWILIO_CALL_RECIPIENT, watcher.station_name);
 
@@ -102,6 +117,20 @@ export async function GET(request) {
             } else {
               console.error('watcher/check - Twilio falló:', notifResult.error);
             }
+
+            // Registrar el evento de llamada para el modal de UI
+            await supabase
+              .from('watcher_call_events')
+              .insert({
+                watcher_id: watcher.id,
+                station_name: watcher.station_name,
+                station_id: String(watcher.station_id),
+                connector_id: freedConnectorId ? String(freedConnectorId) : null,
+                previous_status: freedPrevStatus,
+                current_status: freedCurrStatus,
+                acknowledged: false
+              })
+              .catch(err => console.error('watcher/check - error al insertar call event:', err.message));
 
             await supabase
               .from('active_watchers')
