@@ -65,11 +65,17 @@ export async function GET(request) {
     let callsMade = 0;
     const MAX_RETRIES = 5;
 
+    console.log(`[v0] watcher/check iniciado - ${watchers.length} vigilancias a evaluar`);
+
     for (const watcher of watchers) {
       try {
+        console.log(`[v0] === VIGILANCIA ${watcher.station_name} (${watcher.station_id}) ===`);
+        
         const conectores = await obtenerDatosEstacion(watcher.station_id, user, pass);
+        console.log(`[v0] Electromaps retornó ${conectores?.length || 0} conectores`);
         
         if (!conectores || conectores.length === 0) {
+          console.log(`[v0] Sin conectores - continuando`);
           continue;
         }
 
@@ -77,42 +83,62 @@ export async function GET(request) {
         conectores.forEach(c => {
           currentStates[c.id] = c.status;
         });
+        console.log(`[v0] Estados actuales:`, JSON.stringify(currentStates));
 
         const previousStates = watcher.last_connector_states || {};
+        console.log(`[v0] Estados previos:`, JSON.stringify(previousStates));
+        
         let freedConnectorFound = false;
 
         for (const connectorId of Object.keys(currentStates)) {
           const previousStatus = previousStates[connectorId];
           const currentStatus = currentStates[connectorId];
 
+          console.log(`[v0] Conector ${connectorId}: ${previousStatus || 'N/A'} → ${currentStatus}`);
+
           if (previousStatus === 'OCCUPIED' && currentStatus === 'FREE') {
-            console.log(`Conector ${connectorId} liberado en ${watcher.station_name}`);
+            console.log(`[v0] ✅ CONECTOR LIBERADO: ${connectorId}`);
             freedConnectorFound = true;
             break;
           }
         }
 
+        console.log(`[v0] freedConnectorFound = ${freedConnectorFound}`);
+
         if (freedConnectorFound) {
+          console.log(`[v0] Ejecutando sendNotification con phoneNumber: ${process.env.TWILIO_CALL_RECIPIENT}`);
+          
           try {
-            await sendNotification(process.env.TWILIO_CALL_RECIPIENT, watcher.station_name);
-            callsMade++;
+            const notifResult = await sendNotification(process.env.TWILIO_CALL_RECIPIENT, watcher.station_name);
+            console.log(`[v0] Resultado de sendNotification:`, JSON.stringify(notifResult));
+            
+            if (notifResult.success) {
+              callsMade++;
+              console.log(`[v0] Llamada exitosa - total callsMade: ${callsMade}`);
+            } else {
+              console.log(`[v0] Llamada falló:`, notifResult.error);
+            }
 
             await supabase
               .from('active_watchers')
               .update({ status: 'completed' })
               .eq('id', watcher.id);
+            console.log(`[v0] Status actualizado a 'completed' en DB`);
 
           } catch (twilioError) {
-            console.error(`Error Twilio (intento ${watcher.retry_count + 1}/${MAX_RETRIES}):`, twilioError.message);
+            console.error(`[v0] EXCEPCIÓN en Twilio (intento ${watcher.retry_count + 1}/${MAX_RETRIES}):`, twilioError.message);
+            console.error(`[v0] Stack trace:`, twilioError.stack);
 
             const newRetryCount = (watcher.retry_count || 0) + 1;
 
             if (newRetryCount >= MAX_RETRIES) {
+              console.log(`[v0] Máximo de reintentos alcanzado - marcando como 'failed'`);
               await supabase
                 .from('active_watchers')
                 .update({ status: 'failed', retry_count: newRetryCount })
                 .eq('id', watcher.id);
             } else {
+              console.log(`[v0] Incrementando retry_count a ${newRetryCount}`);
               await supabase
                 .from('active_watchers')
                 .update({ retry_count: newRetryCount })
@@ -120,6 +146,7 @@ export async function GET(request) {
             }
           }
         } else {
+          console.log(`[v0] Sin conectores liberados - actualizando last_connector_states`);
           await supabase
             .from('active_watchers')
             .update({ last_connector_states: currentStates })
@@ -127,15 +154,12 @@ export async function GET(request) {
         }
 
       } catch (stationError) {
-        console.error(`Error procesando estacion ${watcher.station_id}:`, stationError.message);
+        console.error(`[v0] EXCEPCIÓN procesando estación ${watcher.station_id}:`, stationError.message);
+        console.error(`[v0] Stack trace:`, stationError.stack);
       }
     }
 
-    return Response.json({ 
-      success: true, 
-      checked: watchers.length, 
-      calls_made: callsMade 
-    }, { status: 200 });
+    console.log(`[v0] watcher/check finalizado - Total llamadas hechas: ${callsMade}`);
 
   } catch (error) {
     console.error('Error en watcher/check:', error.message);
