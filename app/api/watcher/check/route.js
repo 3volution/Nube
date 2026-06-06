@@ -14,8 +14,9 @@ function getSupabaseClient() {
 }
 
 /**
- * GET /api/watcher/check - Invocado por cron externo cada minuto
- * Query: ?secret=CRON_SECRET
+ * GET /api/watcher/check - Ejecutado cada minuto por Vercel Cron
+ * Compatibilidad con cron-job.org: ?secret=CRON_SECRET
+ * Compatibilidad con Vercel Cron: header x-vercel-cron
  * 
  * Logica:
  * 1. Si no hay vigilancias activas -> retorna sin consultar Electromaps
@@ -26,10 +27,15 @@ function getSupabaseClient() {
  */
 export async function GET(request) {
   try {
+    // Validacion: Aceptar desde Vercel Cron (header) o desde cron-job.org (query param)
+    const verelCronHeader = request.headers.get('x-vercel-cron');
     const { searchParams } = new URL(request.url);
     const secret = searchParams.get('secret');
     
-    if (secret !== process.env.CRON_SECRET) {
+    const isFromVercelCron = verelCronHeader === 'true';
+    const isAuthorizedCronJob = secret === process.env.CRON_SECRET;
+    
+    if (!isFromVercelCron && !isAuthorizedCronJob) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

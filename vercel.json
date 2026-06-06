@@ -8,6 +8,10 @@
     {
       "path": "/api/cron/check-chargers",
       "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/watcher/check",
+      "schedule": "* * * * *"
     }
   ]
 }
