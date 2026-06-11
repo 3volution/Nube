@@ -1,4 +1,11 @@
-import { getSupabaseClient } from '@/app/lib/supabase-client';
+import { createClient } from '@supabase/supabase-js';
+
+function getSupabaseClient() {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw new Error('Supabase environment variables not configured');
+  return createClient(url, key);
+}
 
 /**
  * GET /api/debug/station-usage
