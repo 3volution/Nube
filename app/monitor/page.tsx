@@ -19,22 +19,49 @@ export default function MonitorPage() {
   const [todayCharges, setTodayCharges] = useState(() => {
     // Intentar cargar valor anterior de localStorage
     if (typeof window !== 'undefined') {
-      const cached = localStorage.getItem('todayCharges');
-      return cached ? parseInt(cached) : 0;
+      const cachedDate = localStorage.getItem('cachedDate');
+      const today = new Date().toDateString();
+      
+      // Si el cache es del mismo día, reutilizar; sino, resetear
+      if (cachedDate === today) {
+        const cached = localStorage.getItem('todayCharges');
+        return cached ? parseInt(cached) : 0;
+      } else {
+        localStorage.setItem('cachedDate', today);
+        return 0;
+      }
     }
     return 0;
   }); // Total cargas HOY desde 00:00
   const [todayOccupancy, setTodayOccupancy] = useState(() => {
+    // Intentar cargar valor anterior de localStorage
     if (typeof window !== 'undefined') {
-      const cached = localStorage.getItem('todayOccupancy');
-      return cached ? parseInt(cached) : 0;
+      const cachedDate = localStorage.getItem('cachedDate');
+      const today = new Date().toDateString();
+      
+      // Si el cache es del mismo día, reutilizar; sino, resetear
+      if (cachedDate === today) {
+        const cached = localStorage.getItem('todayOccupancy');
+        return cached ? parseInt(cached) : 0;
+      } else {
+        return 0;
+      }
     }
     return 0;
   }); // Ocupación promedio HOY
   const [todaySanctionable, setTodaySanctionable] = useState(() => {
+    // Intentar cargar valor anterior de localStorage
     if (typeof window !== 'undefined') {
-      const cached = localStorage.getItem('todaySanctionable');
-      return cached ? parseInt(cached) : 0;
+      const cachedDate = localStorage.getItem('cachedDate');
+      const today = new Date().toDateString();
+      
+      // Si el cache es del mismo día, reutilizar; sino, resetear
+      if (cachedDate === today) {
+        const cached = localStorage.getItem('todaySanctionable');
+        return cached ? parseInt(cached) : 0;
+      } else {
+        return 0;
+      }
     }
     return 0;
   }); // Total sancionables HOY
@@ -211,6 +238,7 @@ export default function MonitorPage() {
     if (chargeHistory.length === 0) {
       setTodayOccupancy(0);
       setTodaySanctionable(0);
+      setTodayCharges(0);
       return;
     }
     
@@ -258,6 +286,7 @@ export default function MonitorPage() {
       }
     });
     
+
     const MAX_DAILY_MINUTES = 11520;
     
     // Calcular porcentaje: máximo 11520 minutos al día
@@ -271,6 +300,8 @@ export default function MonitorPage() {
     
     // Guardar en localStorage para persistencia entre recargas
     if (typeof window !== 'undefined') {
+      const today = new Date().toDateString();
+      localStorage.setItem('cachedDate', today);
       localStorage.setItem('todayOccupancy', occupancyPercent.toString());
       localStorage.setItem('todaySanctionable', todaySanctionableCount.toString());
       localStorage.setItem('todayCharges', chargesCountedToday.toString());
