@@ -74,6 +74,7 @@ export default function MonitorPage() {
   const [activeWatchers, setActiveWatchers] = useState({});
   const [showAccessLog, setShowAccessLog] = useState(false);
   const [accessLog, setAccessLog] = useState([]);
+  const [watcherModal, setWatcherModal] = useState({ isOpen: false, station: null });
 
   // Cargar y mostrar log de accesos a policialocal
   const handleShowAccessLog = () => {
