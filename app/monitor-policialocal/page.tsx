@@ -6,6 +6,7 @@ import { APP_VERSION } from '@/app/config/version';
 export default function PoliciaLocalPage() {
   const [stations, setStations] = useState([]);
   const [stateChanges, setStateChanges] = useState([]);
+  const [chargeHistory, setChargeHistory] = useState([]);
   const [sanctionableCharges, setSanctionableCharges] = useState(0);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [loading, setLoading] = useState(true);
@@ -38,7 +39,30 @@ export default function PoliciaLocalPage() {
 
       if (changesRes.ok) {
         const changesData = await changesRes.json();
-        setStateChanges(changesData.changes || []);
+        const changes = changesData.changes || [];
+        setStateChanges(changes);
+        
+        // Extraer historial de cargas completadas (transiciones OCCUPIED → FREE)
+        const uniqueCharges = new Map();
+        changes
+          .filter(change => change.new_status === 'FREE' || change.new_status === 'AVAILABLE')
+          .forEach(change => {
+            const key = `${change.connector_id}-${change.timestamp}`;
+            if (!uniqueCharges.has(key)) {
+              uniqueCharges.set(key, {
+                connector_id: change.connector_id,
+                timestamp: change.timestamp,
+                isCompleted: true,
+                isOverLimit: false
+              });
+            }
+          });
+        
+        const sortedCharges = Array.from(uniqueCharges.values())
+          .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+          .slice(0, 200);
+        
+        setChargeHistory(sortedCharges);
       }
       setError(null);
     } catch (err) {
@@ -109,8 +133,8 @@ export default function PoliciaLocalPage() {
     }
   };
 
-  // Obtener conectores sancionables (ocupados > 2 horas)
-  const sanctionableConnectors = stations
+  // Obtener TODOS los conectores ocupados
+  const allOccupiedConnectors = stations
     .flatMap(station => 
       (station.connectors || []).map(connector => ({
         ...connector,
@@ -118,17 +142,22 @@ export default function PoliciaLocalPage() {
         stationId: station.id
       }))
     )
-    .filter(connector => {
-      if (connector.status === 'FREE' || connector.status === 'AVAILABLE') return false;
-      const startTime = new Date(connector.status_changed_at).getTime();
-      const durationMinutes = Math.floor((Date.now() - startTime) / 60000);
-      return durationMinutes > 120;
-    })
+    .filter(connector => connector.status !== 'FREE' && connector.status !== 'AVAILABLE')
     .sort((a, b) => {
       const aDuration = Math.floor((Date.now() - new Date(a.status_changed_at).getTime()) / 60000);
       const bDuration = Math.floor((Date.now() - new Date(b.status_changed_at).getTime()) / 60000);
       return bDuration - aDuration; // Mayor duración primero
     });
+
+  // Identificar cuáles son sancionables
+  const sanctionableIds = new Set(
+    allOccupiedConnectors
+      .filter(c => {
+        const durationMinutes = Math.floor((Date.now() - new Date(c.status_changed_at).getTime()) / 60000);
+        return durationMinutes > 120;
+      })
+      .map(c => c.id)
+  );
 
   if (loading) {
     return (
@@ -169,42 +198,82 @@ export default function PoliciaLocalPage() {
             </div>
           )}
 
-          {/* Conectores Sancionables */}
-          <div className="grid gap-4">
-            {sanctionableConnectors.length > 0 ? (
-              sanctionableConnectors.map((connector, index) => {
+          {/* Conectores Ocupados (sancionables parpadean) */}
+          <div className="grid gap-4 mb-8">
+            {allOccupiedConnectors.length > 0 ? (
+              allOccupiedConnectors.map((connector, index) => {
                 const durationMinutes = Math.floor((Date.now() - new Date(connector.status_changed_at).getTime()) / 60000);
                 const excessMinutes = durationMinutes - 120;
+                const isSanctionable = sanctionableIds.has(connector.id);
+                const bgClass = isSanctionable 
+                  ? 'bg-red-900 border-l-4 border-red-500 animate-pulse' 
+                  : 'bg-yellow-900/60 border-l-4 border-yellow-600';
 
                 return (
                   <div
                     key={`${connector.id}-${index}`}
-                    className="bg-red-900 border-l-4 border-red-500 p-4 rounded animate-pulse"
+                    className={`${bgClass} p-4 rounded`}
                   >
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-white">
+                    <div className="grid grid-cols-1 md:grid-cols-5 gap-4 text-white">
                       <div>
-                        <span className="text-sm text-red-300">Estación</span>
+                        <span className="text-sm opacity-75">Estación</span>
                         <div className="text-lg font-bold">{connector.stationName}</div>
                       </div>
                       <div>
-                        <span className="text-sm text-red-300">ID Conector</span>
+                        <span className="text-sm opacity-75">ID Conector</span>
                         <div className="text-lg font-bold">{connector.visualRef || connector.id}</div>
                       </div>
                       <div>
-                        <span className="text-sm text-red-300">Tiempo Total</span>
-                        <div className="text-lg font-bold text-red-200">{formatTime(connector.status_changed_at)}</div>
+                        <span className="text-sm opacity-75">Tiempo Total</span>
+                        <div className="text-lg font-bold">{formatTime(connector.status_changed_at)}</div>
                       </div>
                       <div>
-                        <span className="text-sm text-red-300">Exceso sobre límite</span>
-                        <div className="text-lg font-bold text-yellow-300">+{excessMinutes} min</div>
+                        <span className="text-sm opacity-75">Estado</span>
+                        <div className="text-lg font-bold">{isSanctionable ? '⚠️ SANCIONABLE' : '⏱️ Vigilado'}</div>
                       </div>
+                      {isSanctionable && (
+                        <div>
+                          <span className="text-sm opacity-75">Exceso</span>
+                          <div className="text-lg font-bold text-yellow-300">+{excessMinutes} min</div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
               })
             ) : (
               <div className="bg-green-900 border-l-4 border-green-500 text-green-100 p-6 rounded text-center text-lg font-bold">
-                ✅ No hay conectores sancionables en este momento
+                ✅ No hay conectores ocupados en este momento
+              </div>
+            )}
+          </div>
+
+          {/* Histórico de Cargas */}
+          <div className="bg-slate-800 bg-opacity-50 rounded-lg p-6 max-h-96 overflow-y-auto">
+            <h2 className="text-2xl font-bold text-white mb-4">Histórico de Cargas Completadas</h2>
+            {chargeHistory.length > 0 ? (
+              <div>
+                {chargeHistory.map((charge, idx) => {
+                  const timestamp = new Date(charge.timestamp);
+                  const timeStr = timestamp.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+                  const dateStr = timestamp.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
+                  
+                  return (
+                    <div key={idx} className="bg-slate-700/50 px-3 py-2 flex items-start gap-2 border-b border-slate-600 last:border-b-0">
+                      <span className="text-2xl mt-1">✓</span>
+                      <div className="flex-1">
+                        <div className="font-mono text-sm text-slate-300 flex gap-3 mb-1">
+                          <span className="text-slate-400">{dateStr} {timeStr}</span>
+                          <span className="text-blue-300 font-bold">ID: {charge.connector_id}</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-slate-400 text-center py-4">
+                Sin cargas registradas
               </div>
             )}
           </div>
