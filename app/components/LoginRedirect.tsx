@@ -47,11 +47,8 @@ export function LoginRedirect() {
       <div className="w-full max-w-md">
         <div className="bg-slate-800 border border-slate-700 rounded-lg shadow-2xl p-8">
           <h1 className="text-3xl font-bold text-white mb-2 text-center">
-            NUBE MONITORING
+            Acceso Restringido
           </h1>
-          <p className="text-slate-400 text-center mb-8">
-            Sistema de Monitoreo de Estaciones de Carga
-          </p>
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
@@ -83,15 +80,7 @@ export function LoginRedirect() {
             </button>
           </form>
 
-          <div className="mt-8 pt-8 border-t border-slate-700">
-            <p className="text-slate-400 text-xs text-center">
-              Selecciona tu rol:
-            </p>
-            <ul className="text-slate-400 text-xs mt-4 space-y-2">
-              <li>• <span className="text-blue-400">NACHO / Nacho / nacho / 1111</span>: Monitoreo Completo</li>
-              <li>• <span className="text-red-400">POLICIALOCAL</span>: Vista de Sancionables</li>
-            </ul>
-          </div>
+
         </div>
       </div>
     </div>
