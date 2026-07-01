@@ -232,6 +232,13 @@ export default function MonitorPage() {
       let todaySanctionableCount = 0;
       let totalTodayMinutes = 0;
       
+      console.log('[v0] HOY Debug - today:', today.toISOString(), 'tomorrow:', tomorrow.toISOString());
+      console.log('[v0] HOY Debug - sortedCharges count:', sortedCharges.length);
+      if (sortedCharges.length > 0) {
+        console.log('[v0] HOY Debug - first charge timestamp:', sortedCharges[0].timestamp);
+        console.log('[v0] HOY Debug - first charge parsed:', new Date(sortedCharges[0].timestamp).toISOString());
+      }
+      
       sortedCharges.forEach(charge => {
         const chargeTime = new Date(charge.timestamp);
         if (chargeTime >= today && chargeTime < tomorrow) {
@@ -244,6 +251,7 @@ export default function MonitorPage() {
           }
         }
       });
+      console.log('[v0] HOY Calc - todayChargesCount:', todayChargesCount, 'todaySanctionableCount:', todaySanctionableCount, 'totalTodayMinutes:', totalTodayMinutes);
       
       const occupancyPercent = Math.min(100, Math.round((totalTodayMinutes / 11520) * 100));
       setTodayCharges(todayChargesCount);
