@@ -22,6 +22,15 @@ export default function PoliciaLocalPage() {
     828538: 5  // Avda. del Prado
   };
 
+  const getCarIcon = (connectorId: string, index?: number) => {
+    const icons = ['🚗', '🚕', '🚙', '🚌', '🚎', '🏎️', '🚓', '🚑'];
+    if (index !== undefined) {
+      return icons[index % icons.length];
+    }
+    const hash = connectorId.charCodeAt(connectorId.length - 1) || 0;
+    return icons[hash % icons.length];
+  };
+
   const fetchData = async () => {
     try {
       const [stationsRes, changesRes] = await Promise.all([
@@ -249,33 +258,89 @@ export default function PoliciaLocalPage() {
           </div>
 
           {/* Histórico de Cargas */}
-          <div className="bg-slate-800 bg-opacity-50 rounded-lg p-6 max-h-96 overflow-y-auto">
-            <h2 className="text-2xl font-bold text-white mb-4">Histórico de Cargas Completadas</h2>
-            {chargeHistory.length > 0 ? (
-              <div>
-                {chargeHistory.map((charge, idx) => {
-                  const timestamp = new Date(charge.timestamp);
-                  const timeStr = timestamp.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-                  const dateStr = timestamp.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
-                  
-                  return (
-                    <div key={idx} className="bg-slate-700/50 px-3 py-2 flex items-start gap-2 border-b border-slate-600 last:border-b-0">
-                      <span className="text-2xl mt-1">✓</span>
-                      <div className="flex-1">
-                        <div className="font-mono text-sm text-slate-300 flex gap-3 mb-1">
-                          <span className="text-slate-400">{dateStr} {timeStr}</span>
-                          <span className="text-blue-300 font-bold">ID: {charge.connector_id}</span>
+          <div className="mt-8">
+            <h2 className="text-2xl font-bold text-white mb-4">Cargas Completadas - Histórico</h2>
+            <div className="bg-slate-800 rounded-lg overflow-hidden">
+              {chargeHistory.length > 0 ? (
+                <div className="max-h-96 overflow-y-auto">
+                  {chargeHistory.map((charge, idx) => {
+                    const timestamp = new Date(charge.timestamp);
+                    const timeStr = timestamp.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+                    const dateStr = timestamp.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
+                    
+                    let showDaySeparator = idx === 0;
+                    if (idx > 0) {
+                      const prevTimestamp = new Date(chargeHistory[idx - 1].timestamp);
+                      const currentDate = new Date(timestamp).toLocaleDateString('es-ES');
+                      const prevDate = new Date(prevTimestamp).toLocaleDateString('es-ES');
+                      showDaySeparator = currentDate !== prevDate;
+                    }
+                    
+                    const mins = charge.durationMinutes || 0;
+                    const durationStr = mins >= 60 
+                      ? `${Math.floor(mins / 60)}h ${mins % 60}m` 
+                      : `${mins}m`;
+                    
+                    let bgColor = 'bg-slate-700';
+                    if (charge.isCompleted) {
+                      bgColor = charge.isOverLimit ? 'bg-red-900/70' : 'bg-green-900/50';
+                    }
+                    
+                    return (
+                      <div key={idx}>
+                        {showDaySeparator && idx > 0 && (
+                          <div className="bg-slate-200 px-3 py-3 flex items-center justify-between border-b-2 border-slate-400">
+                            <div className="flex-1">
+                              <div className="font-bold text-slate-900 text-sm mb-2">
+                                RESUMEN DEL DÍA ANTERIOR - 23:59 HORAS
+                              </div>
+                              <div className="flex gap-8 text-sm text-slate-800">
+                                <div className="flex gap-2">
+                                  <span className="font-semibold">Cargas:</span>
+                                  <span className="text-green-600 font-bold">-</span>
+                                </div>
+                                <div className="flex gap-2">
+                                  <span className="font-semibold">Ocupación:</span>
+                                  <span className="text-blue-600 font-bold">-</span>
+                                </div>
+                                <div className="flex gap-2">
+                                  <span className="text-lg">⚠️</span>
+                                  <span className="text-red-600 font-bold">-</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        
+                        <div className={`${bgColor} px-3 py-2 flex items-start gap-2 border-b border-slate-600 last:border-b-0`}>
+                          <span className="text-2xl mt-1">{getCarIcon(charge.connector_id, idx)}</span>
+                          <div className="flex-1">
+                            <div className="font-mono text-sm text-slate-300 flex gap-3 mb-1">
+                              <span className="text-slate-400">{dateStr} {timeStr}</span>
+                              <span className="text-blue-300 font-bold">ID: {charge.connector_id}</span>
+                            </div>
+                            <div className="font-mono text-sm flex gap-3 items-center">
+                              <span className="text-slate-300">{charge.station_name || '-'}</span>
+                              <span className={
+                                charge.isOverLimit 
+                                  ? 'text-red-400 font-bold' 
+                                  : 'text-green-400 font-bold'
+                              }>
+                                {durationStr}
+                              </span>
+                            </div>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="text-slate-400 text-center py-4">
-                Sin cargas registradas
-              </div>
-            )}
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="bg-slate-700 p-4 text-slate-400 text-center">
+                  Sin cargas registradas
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Footer */}
