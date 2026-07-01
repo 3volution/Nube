@@ -5,9 +5,10 @@ import { useState, useEffect } from 'react';
 interface PasswordAuthProps {
   children: React.ReactNode;
   correctPasswords: string[];
+  sessionKey?: string;
 }
 
-export function PasswordAuth({ children, correctPasswords }: PasswordAuthProps) {
+export function PasswordAuth({ children, correctPasswords, sessionKey = 'monitor-authenticated' }: PasswordAuthProps) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -15,17 +16,17 @@ export function PasswordAuth({ children, correctPasswords }: PasswordAuthProps) 
 
   useEffect(() => {
     setMounted(true);
-    // Verificar si ya hay sesión guardada
-    const storedAuth = sessionStorage.getItem('monitor-authenticated');
+    // Verificar si ya hay sesión guardada para esta ruta específica
+    const storedAuth = sessionStorage.getItem(sessionKey);
     if (storedAuth === 'true') {
       setIsAuthenticated(true);
     }
-  }, []);
+  }, [sessionKey]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (correctPasswords.includes(password)) {
-      sessionStorage.setItem('monitor-authenticated', 'true');
+      sessionStorage.setItem(sessionKey, 'true');
       setIsAuthenticated(true);
       setError('');
       setPassword('');
@@ -36,7 +37,7 @@ export function PasswordAuth({ children, correctPasswords }: PasswordAuthProps) 
   };
 
   const handleLogout = () => {
-    sessionStorage.removeItem('monitor-authenticated');
+    sessionStorage.removeItem(sessionKey);
     setIsAuthenticated(false);
     setPassword('');
     setError('');

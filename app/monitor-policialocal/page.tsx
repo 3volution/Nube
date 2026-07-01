@@ -135,7 +135,7 @@ export default function PoliciaLocalPage() {
 
   if (loading) {
     return (
-      <PasswordAuth correctPasswords={validPasswords}>
+      <PasswordAuth correctPasswords={validPasswords} sessionKey="monitor-policialocal">
         <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center">
           <div className="text-white text-2xl">Cargando...</div>
         </div>
@@ -144,7 +144,7 @@ export default function PoliciaLocalPage() {
   }
 
   return (
-    <PasswordAuth correctPasswords={validPasswords}>
+    <PasswordAuth correctPasswords={validPasswords} sessionKey="monitor-policialocal">
       <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 p-6">
         <div className="max-w-6xl mx-auto">
           {/* Header */}

@@ -474,7 +474,7 @@ export default function MonitorPage() {
   const validPasswords = ['NACHO', 'Nacho', 'nacho', '1111'];
 
   return (
-    <PasswordAuth correctPasswords={validPasswords}>
+    <PasswordAuth correctPasswords={validPasswords} sessionKey="monitor-nacho">
       <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 p-6">
       <CallEventModal />
       <div className="max-w-7xl mx-auto">
