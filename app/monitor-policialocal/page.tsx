@@ -373,12 +373,6 @@ export default function PoliciaLocalPage() {
               ✅ No hay conectores ocupados en este momento
             </div>
           )}
-            ) : (
-              <div className="bg-green-900 border-l-4 border-green-500 text-green-100 p-6 rounded text-center text-lg font-bold">
-                ✅ No hay conectores ocupados en este momento
-              </div>
-            )}
-          </div>
 
           {/* Histórico de Cargas Sancionables */}
           <div className="mt-8">
