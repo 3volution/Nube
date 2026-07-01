@@ -9,6 +9,30 @@ export default function AccesosWebPage() {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(false);
 
+  const loadLogs = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/access-log');
+      const data = await res.json();
+      setLogs(data.logs || []);
+    } catch (err) {
+      console.error('[v0] Error cargando logs:', err);
+    } finally {
+      setLoading(false);
+      setIsAuthenticated(true);
+    }
+  };
+
+  // Auto-login si viene desde la landing con sessionStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const auth = sessionStorage.getItem('accesos-web-auth');
+      if (auth === 'true') {
+        loadLogs();
+      }
+    }
+  }, []);
+
   const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanPassword = password.trim();
@@ -16,18 +40,7 @@ export default function AccesosWebPage() {
     if (cleanPassword === '1967') {
       setPasswordError(false);
       setPassword('');
-      setLoading(true);
-      
-      try {
-        const res = await fetch('/api/access-log');
-        const data = await res.json();
-        setLogs(data.logs || []);
-      } catch (err) {
-        console.error('[v0] Error cargando logs:', err);
-      } finally {
-        setLoading(false);
-        setIsAuthenticated(true);
-      }
+      await loadLogs();
     } else {
       setPasswordError(true);
       setPassword('');

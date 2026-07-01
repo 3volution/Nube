@@ -212,7 +212,7 @@ export default function PoliciaLocalPage() {
   };
 
   // Contraseñas válidas
-  const VALID_PASSWORDS = ['NACHO', '1111', 'OSUNA', 'POLICIALOCAL'];
+  const VALID_PASSWORDS = ['OSUNA', 'POLICIALOCAL'];
 
   // Función para validar contraseña
   const handlePasswordSubmit = (e) => {
