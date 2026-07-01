@@ -38,7 +38,7 @@ export default function PoliciaLocalPage() {
     try {
       const [stationsRes, changesRes] = await Promise.all([
         fetch('/api/stations'),
-        fetch('/api/state-changes?limit=200')
+        fetch('/api/state-changes?limit=2000')
       ]);
 
       if (stationsRes.ok) {
