@@ -13,7 +13,7 @@ export function LoginRedirect() {
     setMounted(true);
   }, []);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
     const cleanPassword = password.trim();
@@ -28,35 +28,25 @@ export function LoginRedirect() {
     // Contraseña para /accesos-web
     const accesoWebPassword = '1967';
 
-    // Registrar intento de acceso
-    try {
-      const isValid = monitorPasswords.includes(upperPassword) || policialocalPasswords.includes(upperPassword) || cleanPassword === accesoWebPassword;
-      await fetch('/api/access-log', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          password: cleanPassword,
-          status: isValid ? 'success' : 'failed'
-        })
-      });
-    } catch (err) {
-      console.error('[v0] Error registrando acceso:', err);
-    }
+    // Registrar intento en segundo plano (no bloquea la navegación)
+    const isValid = monitorPasswords.includes(upperPassword) || policialocalPasswords.includes(upperPassword) || cleanPassword === accesoWebPassword;
+    fetch('/api/access-log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: cleanPassword, status: isValid ? 'success' : 'failed' })
+    }).catch(() => {});
 
     if (monitorPasswords.includes(upperPassword)) {
-      // Redirigir a /monitor
       sessionStorage.setItem('monitor-auth', 'true');
       router.push('/monitor');
       setPassword('');
       setError('');
     } else if (policialocalPasswords.includes(upperPassword)) {
-      // Redirigir a /monitor-policialocal
       sessionStorage.setItem('policialocal-auth', 'true');
       router.push('/monitor-policialocal');
       setPassword('');
       setError('');
     } else if (cleanPassword === accesoWebPassword) {
-      // Redirigir a /accesos-web
       sessionStorage.setItem('accesos-web-auth', 'true');
       router.push('/accesos-web');
       setPassword('');
