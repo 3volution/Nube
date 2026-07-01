@@ -471,10 +471,10 @@ export default function MonitorPage() {
     return acc;
   }, []);
 
-  const monitorPassword = process.env.NEXT_PUBLIC_MONITOR_PASSWORD || 'admin123';
+  const validPasswords = ['NACHO', 'Nacho', 'nacho', '1111'];
 
   return (
-    <PasswordAuth correctPassword={monitorPassword}>
+    <PasswordAuth correctPasswords={validPasswords}>
       <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 p-6">
       <CallEventModal />
       <div className="max-w-7xl mx-auto">

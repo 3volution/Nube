@@ -4,10 +4,10 @@ import { useState, useEffect } from 'react';
 
 interface PasswordAuthProps {
   children: React.ReactNode;
-  correctPassword: string;
+  correctPasswords: string[];
 }
 
-export function PasswordAuth({ children, correctPassword }: PasswordAuthProps) {
+export function PasswordAuth({ children, correctPasswords }: PasswordAuthProps) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -24,7 +24,7 @@ export function PasswordAuth({ children, correctPassword }: PasswordAuthProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (password === correctPassword) {
+    if (correctPasswords.includes(password)) {
       sessionStorage.setItem('monitor-authenticated', 'true');
       setIsAuthenticated(true);
       setError('');
