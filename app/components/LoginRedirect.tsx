@@ -1,20 +1,19 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 export function LoginRedirect() {
-  const [password, setPassword] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState('');
   const router = useRouter();
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    // Leer el valor directamente del formulario para evitar problemas con autorellenado
-    const formData = new FormData(e.currentTarget);
-    const rawPassword = (formData.get('password') as string) || password;
-    const p = rawPassword.trim().toUpperCase();
+    // Leer directamente del DOM, nunca del estado de React
+    const raw = inputRef.current?.value ?? '';
+    const p = raw.trim().toUpperCase();
 
     if (p === 'NACHO' || p === '1111') {
       router.push('/monitor');
@@ -24,7 +23,7 @@ export function LoginRedirect() {
       router.push('/accesos-web');
     } else {
       setError('Contraseña incorrecta');
-      setPassword('');
+      if (inputRef.current) inputRef.current.value = '';
     }
   };
 
@@ -41,14 +40,14 @@ export function LoginRedirect() {
                 Contraseña
               </label>
               <input
+                ref={inputRef}
                 id="password"
                 name="password"
                 type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
                 placeholder="Ingresa la contraseña"
                 className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
                 autoFocus
+                autoComplete="off"
               />
             </div>
             {error && (
