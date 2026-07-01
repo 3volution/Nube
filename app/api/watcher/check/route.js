@@ -90,6 +90,39 @@ export async function GET(request) {
         }
 
         if (freedConnectorId) {
+          // 🔥 ESCRIBIR EN chargeHistory cuando se detecta FIN DE CARGA
+          const freedConnector = conectores.find(c => c.id === freedConnectorId);
+          if (freedConnector) {
+            const chargeEndTime = new Date().toISOString();
+            const chargeStartTime = freedConnector.status_changed_at || chargeEndTime;
+            
+            const durationMinutes = Math.floor(
+              (new Date(chargeEndTime) - new Date(chargeStartTime)) / 60000
+            );
+            const isOverLimit = durationMinutes > 120; // > 2 horas = sancionable
+            
+            await supabase.from('chargeHistory').insert({
+              connector_id: freedConnectorId,
+              station_id: String(watcher.station_id),
+              station_name: watcher.station_name,
+              started_at: chargeStartTime,
+              ended_at: chargeEndTime,
+              timestamp: chargeEndTime,
+              durationMinutes: durationMinutes,
+              isOverLimit: isOverLimit,
+              isCompleted: true
+            });
+
+            // 🔥 ESCRIBIR EN connector_state_changes
+            await supabase.from('connector_state_changes').insert({
+              connector_id: freedConnectorId,
+              old_status: freedPrevStatus,
+              new_status: freedCurrStatus,
+              changed_at: chargeEndTime,
+              timestamp: chargeEndTime
+            });
+          }
+
           // Comprobar si ya existe una alerta activa (ringing) para este watcher
           const { data: existingAlert } = await supabase
             .from('watcher_call_events')
