@@ -320,26 +320,59 @@ export default function PoliciaLocalPage() {
           )}
 
           {/* Conectores Ocupados (sancionables parpadean) */}
-          <div className="grid gap-4 mb-8">
-            {allOccupiedConnectors.length > 0 ? (
-              allOccupiedConnectors.map((connector, index) => {
-                const durationMinutes = Math.floor((Date.now() - new Date(connector.status_changed_at).getTime()) / 60000);
-                const excessMinutes = durationMinutes - 120;
-                const isSanctionable = sanctionableIds.has(connector.id);
-                const bgClass = isSanctionable 
-                  ? 'bg-red-900 border-l-4 border-red-500 animate-pulse' 
-                  : 'bg-yellow-900/60 border-l-4 border-yellow-600';
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {stations.map(station => {
+              // Filtrar conectores ocupados de esta estación
+              const stationConnectors = allOccupiedConnectors.filter(c => c.stationName === station.name);
+              
+              if (stationConnectors.length === 0) return null;
+              
+              return (
+                <div
+                  key={station.id}
+                  className="rounded-lg p-4 border bg-slate-700 border-slate-600 hover:border-slate-500 transition"
+                >
+                  <div className="mb-4">
+                    <h3 className="text-white font-bold text-2xl">{station.name}</h3>
+                  </div>
 
-                return (
-                  <div
-                    key={`${connector.id}-${index}`}
-                    className={`${bgClass} p-4 rounded`}
-                  >
-                    <div className="grid grid-cols-1 md:grid-cols-5 gap-4 text-white">
-                      <div>
-                        <span className="text-sm opacity-75">Estación</span>
-                        <div className="text-lg font-bold">{connector.stationName}</div>
-                      </div>
+                  <div className="grid grid-cols-1 gap-3 max-h-96 overflow-y-auto pr-2">
+                    {stationConnectors.map((connector, idx) => {
+                      const durationMinutes = Math.floor((Date.now() - new Date(connector.status_changed_at).getTime()) / 60000);
+                      const excessMinutes = durationMinutes - 120;
+                      const isSanctionable = sanctionableIds.has(connector.id);
+                      
+                      return (
+                        <div
+                          key={idx}
+                          className={`p-3 rounded-lg border-2 flex flex-col justify-center h-20 ${
+                            isSanctionable
+                              ? 'bg-red-900/70 border-red-500 animate-pulse'
+                              : 'bg-yellow-900/60 border-yellow-600'
+                          }`}
+                        >
+                          <div className="text-white">
+                            <div className="font-bold text-sm">{connector.visualRef || connector.id}</div>
+                            <div className="text-xs opacity-75 mt-1">{formatTime(connector.status_changed_at)}</div>
+                            {isSanctionable && (
+                              <div className="text-xs text-yellow-300 font-bold mt-1">+{excessMinutes} min</div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Mensaje si no hay conectores ocupados */}
+          {allOccupiedConnectors.length === 0 && (
+            <div className="bg-green-900 border-l-4 border-green-500 text-green-100 p-6 rounded text-center text-lg font-bold">
+              ✅ No hay conectores ocupados en este momento
+            </div>
+          )}
                       <div>
                         <span className="text-sm opacity-75">ID Conector</span>
                         <div className="text-lg font-bold">{connector.visualRef || connector.id}</div>
