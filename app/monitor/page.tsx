@@ -201,9 +201,8 @@ export default function MonitorPage() {
         }
       });
       
-      // Ordenar por fecha descendente, filtrar solo completadas y limitar a 200
+      // Ordenar por fecha descendente y limitar a 200
       const sortedCharges = uniqueCharges
-        .filter(charge => charge.isCompleted) // Solo mostrar cargas completadas
         .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
         .slice(0, 200); // Aumentado de 50 a 200
       
