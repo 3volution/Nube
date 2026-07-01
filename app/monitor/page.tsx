@@ -209,9 +209,6 @@ export default function MonitorPage() {
       
       setChargeHistory(sortedCharges);
       
-      // Actualizar estadísticas HOY
-      updateTodayStats(sortedCharges);
-      
       // Calcular cargas del dia actual (desde las 00:00)
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -236,9 +233,9 @@ export default function MonitorPage() {
     }
   }, [stateChanges]);
 
-  // Función para actualizar estadísticas HOY - llamada manual desde fetchData
-  const updateTodayStats = (charges) => {
-    if (charges.length === 0) {
+  // Actualizar estadísticas HOY cuando chargeHistory cambie
+  useEffect(() => {
+    if (chargeHistory.length === 0) {
       setTodayOccupancy(0);
       setTodaySanctionable(0);
       setTodayCharges(0);
@@ -258,7 +255,7 @@ export default function MonitorPage() {
     const chargesByStation = {};
     const sanctionableByStation = {};
     
-    charges.forEach(charge => {
+    chargeHistory.forEach(charge => {
       const chargeTime = new Date(charge.timestamp);
       // Solo contar si la carga es HOY (>= hoy 00:00 y < mañana 00:00)
       if (chargeTime >= today && chargeTime < tomorrow) {
@@ -294,7 +291,7 @@ export default function MonitorPage() {
     // Calcular porcentaje: máximo 11520 minutos al día
     const occupancyPercent = Math.min(100, Math.round((totalOccupiedTime / MAX_DAILY_MINUTES) * 100));
     
-    console.log('[v0] Updating HOY - Charges:', chargesCountedToday, 'Occupancy:', occupancyPercent, 'Sanctionable:', todaySanctionableCount);
+    console.log('[v0] HOY updated - Charges:', chargesCountedToday, 'Occupancy:', occupancyPercent, 'Sanctionable:', todaySanctionableCount);
     
     setTodayOccupancy(occupancyPercent);
     setTodaySanctionable(todaySanctionableCount);
@@ -310,7 +307,7 @@ export default function MonitorPage() {
       localStorage.setItem('todaySanctionable', todaySanctionableCount.toString());
       localStorage.setItem('todayCharges', chargesCountedToday.toString());
     }
-  };
+  }, [chargeHistory]);
 
   useEffect(() => {
     fetchData();
@@ -516,8 +513,6 @@ export default function MonitorPage() {
           
           {/* Daily Charge Counter - Two lines: HOY vs AHORA MISMO */}
           <div className="mt-4 space-y-3">
-            {/* DEBUG */}
-            {typeof window !== 'undefined' && console.log('[v0] HOY Debug - chargeHistory:', chargeHistory.length, 'todayCharges:', todayCharges, 'todayOccupancy:', todayOccupancy, 'todaySanctionable:', todaySanctionable)}
             {/* Línea 1: HOY */}
             <div className="flex items-center gap-6 text-lg flex-wrap bg-slate-800 bg-opacity-50 p-3 rounded">
               <span className="font-bold text-yellow-400">HOY:</span>
