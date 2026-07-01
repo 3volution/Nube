@@ -225,8 +225,6 @@ export default function MonitorPage() {
       const chargesPerStation = {};
       
       // Calcular estadísticas HOY directamente desde sortedCharges
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
       
