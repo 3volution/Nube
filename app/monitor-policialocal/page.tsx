@@ -313,13 +313,13 @@ export default function PoliciaLocalPage() {
             )}
           </div>
 
-          {/* Histórico de Cargas */}
+          {/* Histórico de Cargas Sancionables */}
           <div className="mt-8">
-            <h2 className="text-2xl font-bold text-white mb-4">Cargas Completadas - Histórico</h2>
+            <h2 className="text-2xl font-bold text-white mb-4">Histórico de Cargas Sancionables</h2>
             <div className="bg-slate-800 rounded-lg overflow-hidden">
-              {chargeHistory.length > 0 ? (
+              {chargeHistory.filter(c => c.isOverLimit).length > 0 ? (
                 <div className="max-h-96 overflow-y-auto">
-                  {chargeHistory.map((charge, idx) => {
+                  {chargeHistory.filter(c => c.isOverLimit).map((charge, idx) => {
                     const timestamp = new Date(charge.timestamp);
                     const timeStr = timestamp.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
                     const dateStr = timestamp.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
@@ -327,7 +327,8 @@ export default function PoliciaLocalPage() {
                     // Detectar si es el primer elemento o cambio de fecha
                     let showDaySeparator = idx === 0;
                     if (idx > 0) {
-                      const prevTimestamp = new Date(chargeHistory[idx - 1].timestamp);
+                      const filteredCharges = chargeHistory.filter(c => c.isOverLimit);
+                      const prevTimestamp = new Date(filteredCharges[idx - 1].timestamp);
                       const currentDate = new Date(timestamp).toLocaleDateString('es-ES');
                       const prevDate = new Date(prevTimestamp).toLocaleDateString('es-ES');
                       showDaySeparator = currentDate !== prevDate;
@@ -339,41 +340,19 @@ export default function PoliciaLocalPage() {
                       ? `${Math.floor(mins / 60)}h ${mins % 60}m` 
                       : `${mins}m`;
                     
-                    // Color de fondo segun estado
-                    let bgColor = 'bg-slate-700'; // Gris - en progreso
-                    if (charge.isCompleted) {
-                      bgColor = charge.isOverLimit ? 'bg-red-900/70' : 'bg-green-900/50';
-                    }
-                    
                     return (
                       <div key={idx}>
-                        {/* Línea de fin de día anterior si hay cambio de fecha */}
+                        {/* Separador de día a las 23:59 */}
                         {showDaySeparator && idx > 0 && (
-                          <div className="bg-slate-200 px-3 py-3 flex items-center justify-between border-b-2 border-slate-400">
-                            <div className="flex-1">
-                              <div className="font-bold text-slate-900 text-sm mb-2">
-                                RESUMEN DEL DÍA ANTERIOR - 23:59 HORAS
-                              </div>
-                              <div className="flex gap-8 text-sm text-slate-800">
-                                <div className="flex gap-2">
-                                  <span className="font-semibold">Cargas:</span>
-                                  <span className="text-green-600 font-bold">12</span>
-                                </div>
-                                <div className="flex gap-2">
-                                  <span className="font-semibold">Ocupación:</span>
-                                  <span className="text-blue-600 font-bold">68%</span>
-                                </div>
-                                <div className="flex gap-2">
-                                  <span className="text-lg">⚠️</span>
-                                  <span className="text-red-600 font-bold">3</span>
-                                </div>
-                              </div>
+                          <div className="bg-slate-200 px-3 py-3 border-b-2 border-slate-400">
+                            <div className="font-bold text-slate-900 text-sm">
+                              DÍA ANTERIOR - 23:59 HORAS
                             </div>
                           </div>
                         )}
                         
-                        {/* Línea de carga normal */}
-                        <div className={`${bgColor} px-3 py-2 flex items-start gap-2 border-b border-slate-600 last:border-b-0`}>
+                        {/* Línea de carga sancionable (roja) */}
+                        <div className="bg-red-900/70 px-3 py-2 flex items-start gap-2 border-b border-slate-600 last:border-b-0">
                           <span className="text-2xl mt-1">{getCarIcon(charge.connector_id, idx)}</span>
                           <div className="flex-1">
                             {/* Primera línea: fecha, hora, ID */}
@@ -384,11 +363,7 @@ export default function PoliciaLocalPage() {
                             {/* Segunda línea: ubicación y tiempo */}
                             <div className="font-mono text-sm flex gap-3 items-center">
                               <span className="text-slate-300">{charge.station_name}</span>
-                              <span className={
-                                charge.isOverLimit 
-                                  ? 'text-red-400 font-bold' 
-                                  : 'text-green-400 font-bold'
-                              }>
+                              <span className="text-red-400 font-bold">
                                 {durationStr}
                               </span>
                             </div>
@@ -400,7 +375,7 @@ export default function PoliciaLocalPage() {
                 </div>
               ) : (
                 <div className="bg-slate-800 p-4 text-slate-400 text-center">
-                  Sin cargas registradas
+                  Sin cargas sancionables registradas
                 </div>
               )}
             </div>
