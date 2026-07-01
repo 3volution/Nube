@@ -13,7 +13,7 @@ export function LoginRedirect() {
     setMounted(true);
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     const cleanPassword = password.trim().toUpperCase();
@@ -23,6 +23,20 @@ export function LoginRedirect() {
     
     // Contraseñas para /monitor-policialocal: "OSUNA", "POLICIALOCAL"
     const policialocalPasswords = ['OSUNA', 'POLICIALOCAL'];
+
+    // Registrar intento de acceso
+    try {
+      await fetch('/api/access-log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          password: cleanPassword,
+          status: monitorPasswords.includes(cleanPassword) || policialocalPasswords.includes(cleanPassword) ? 'success' : 'failed'
+        })
+      });
+    } catch (err) {
+      console.error('[v0] Error registrando acceso:', err);
+    }
 
     if (monitorPasswords.includes(cleanPassword)) {
       // Redirigir a /monitor
