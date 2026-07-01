@@ -225,23 +225,24 @@ export default function MonitorPage() {
       const chargesPerStation = {};
       
       // Calcular estadísticas HOY directamente desde sortedCharges
-      const tomorrow = new Date(today);
-      tomorrow.setDate(tomorrow.getDate() + 1);
+      // Comparar fechas en UTC para evitar problemas de zona horaria
+      const nowUTC = new Date();
+      const todayDateString = nowUTC.getUTCFullYear() + '-' + 
+        String(nowUTC.getUTCMonth() + 1).padStart(2, '0') + '-' + 
+        String(nowUTC.getUTCDate()).padStart(2, '0');
       
       let todayChargesCount = 0;
       let todaySanctionableCount = 0;
       let totalTodayMinutes = 0;
       
-      console.log('[v0] HOY Debug - today:', today.toISOString(), 'tomorrow:', tomorrow.toISOString());
-      console.log('[v0] HOY Debug - sortedCharges count:', sortedCharges.length);
-      if (sortedCharges.length > 0) {
-        console.log('[v0] HOY Debug - first charge timestamp:', sortedCharges[0].timestamp);
-        console.log('[v0] HOY Debug - first charge parsed:', new Date(sortedCharges[0].timestamp).toISOString());
-      }
-      
       sortedCharges.forEach(charge => {
         const chargeTime = new Date(charge.timestamp);
-        if (chargeTime >= today && chargeTime < tomorrow) {
+        const chargeDateString = chargeTime.getUTCFullYear() + '-' + 
+          String(chargeTime.getUTCMonth() + 1).padStart(2, '0') + '-' + 
+          String(chargeTime.getUTCDate()).padStart(2, '0');
+        
+        // Comparar fechas en UTC
+        if (chargeDateString === todayDateString) {
           todayChargesCount++;
           if (charge.durationMinutes > 0) {
             totalTodayMinutes += charge.durationMinutes;
@@ -251,7 +252,6 @@ export default function MonitorPage() {
           }
         }
       });
-      console.log('[v0] HOY Calc - todayChargesCount:', todayChargesCount, 'todaySanctionableCount:', todaySanctionableCount, 'totalTodayMinutes:', totalTodayMinutes);
       
       const occupancyPercent = Math.min(100, Math.round((totalTodayMinutes / 11520) * 100));
       setTodayCharges(todayChargesCount);
