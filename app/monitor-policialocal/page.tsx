@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { APP_VERSION } from '@/app/config/version';
-import { PasswordAuth } from '@/app/components/PasswordAuth';
 
 export default function PoliciaLocalPage() {
   const [stations, setStations] = useState([]);
@@ -131,21 +130,16 @@ export default function PoliciaLocalPage() {
       return bDuration - aDuration; // Mayor duración primero
     });
 
-  const validPasswords = ['POLICIALOCAL'];
-
   if (loading) {
     return (
-      <PasswordAuth correctPasswords={validPasswords} sessionKey="monitor-policialocal">
-        <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center">
-          <div className="text-white text-2xl">Cargando...</div>
-        </div>
-      </PasswordAuth>
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center">
+        <div className="text-white text-2xl">Cargando...</div>
+      </div>
     );
   }
 
   return (
-    <PasswordAuth correctPasswords={validPasswords} sessionKey="monitor-policialocal">
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 p-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 p-6">
         <div className="max-w-6xl mx-auto">
           {/* Header */}
           <div className="mb-8">
@@ -222,6 +216,5 @@ export default function PoliciaLocalPage() {
           </div>
         </div>
       </div>
-    </PasswordAuth>
   );
 }
