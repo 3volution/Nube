@@ -374,6 +374,7 @@ export default function PoliciaLocalPage() {
             </div>
           )}
           )}
+          )}
                       <div>
                         <span className="text-sm opacity-75">ID Conector</span>
                         <div className="text-lg font-bold">{connector.visualRef || connector.id}</div>
