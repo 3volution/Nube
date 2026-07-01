@@ -253,8 +253,7 @@ export default function PoliciaLocalPage() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center p-6">
         <div className="bg-slate-800 rounded-lg p-8 shadow-2xl max-w-md w-full">
-          <h1 className="text-3xl font-bold text-white mb-2 text-center">Acceso Restringido</h1>
-          <p className="text-slate-300 text-center mb-6">Vista de Policía Local</p>
+          <h1 className="text-3xl font-bold text-white mb-6 text-center">Acceso Restringido</h1>
           
           <form onSubmit={handlePasswordSubmit} className="space-y-4">
             <div>
