@@ -205,27 +205,12 @@ export default function PoliciaLocalPage() {
   const VALID_PASSWORDS = ['NACHO', '1111', 'OSUNA', 'POLICIALOCAL'];
 
   // Función para validar contraseña
-  const handlePasswordSubmit = async (e) => {
+  const handlePasswordSubmit = (e) => {
     e.preventDefault();
     // Validar: trim para espacios, toUpperCase para mayúsculas
     const cleanPassword = password.trim().toUpperCase();
-    const isValid = VALID_PASSWORDS.includes(cleanPassword);
     
-    // Registrar intento en el servidor
-    try {
-      await fetch('/api/access-log', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          password: cleanPassword,
-          status: isValid ? 'success' : 'failed'
-        })
-      });
-    } catch (err) {
-      console.error('[v0] Error registrando acceso:', err);
-    }
-    
-    if (isValid) {
+    if (VALID_PASSWORDS.includes(cleanPassword)) {
       setIsAuthenticated(true);
       setPasswordError(false);
       setPassword('');
