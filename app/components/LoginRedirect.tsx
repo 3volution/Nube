@@ -16,38 +16,49 @@ export function LoginRedirect() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    const cleanPassword = password.trim().toUpperCase();
+    const cleanPassword = password.trim();
+    const upperPassword = cleanPassword.toUpperCase();
     
     // Contraseñas para /monitor: "NACHO", "1111"
     const monitorPasswords = ['NACHO', '1111'];
     
     // Contraseñas para /monitor-policialocal: "OSUNA", "POLICIALOCAL"
     const policialocalPasswords = ['OSUNA', 'POLICIALOCAL'];
+    
+    // Contraseña para /accesos-web
+    const accesoWebPassword = '1967';
 
     // Registrar intento de acceso
     try {
+      const isValid = monitorPasswords.includes(upperPassword) || policialocalPasswords.includes(upperPassword) || cleanPassword === accesoWebPassword;
       await fetch('/api/access-log', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           password: cleanPassword,
-          status: monitorPasswords.includes(cleanPassword) || policialocalPasswords.includes(cleanPassword) ? 'success' : 'failed'
+          status: isValid ? 'success' : 'failed'
         })
       });
     } catch (err) {
       console.error('[v0] Error registrando acceso:', err);
     }
 
-    if (monitorPasswords.includes(cleanPassword)) {
+    if (monitorPasswords.includes(upperPassword)) {
       // Redirigir a /monitor
       sessionStorage.setItem('monitor-auth', 'true');
       router.push('/monitor');
       setPassword('');
       setError('');
-    } else if (policialocalPasswords.includes(cleanPassword)) {
+    } else if (policialocalPasswords.includes(upperPassword)) {
       // Redirigir a /monitor-policialocal
       sessionStorage.setItem('policialocal-auth', 'true');
       router.push('/monitor-policialocal');
+      setPassword('');
+      setError('');
+    } else if (cleanPassword === accesoWebPassword) {
+      // Redirigir a /accesos-web
+      sessionStorage.setItem('accesos-web-auth', 'true');
+      router.push('/accesos-web');
       setPassword('');
       setError('');
     } else {

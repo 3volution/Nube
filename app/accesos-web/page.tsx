@@ -12,7 +12,6 @@ export default function AccesosWebPage() {
   const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanPassword = password.trim();
-    console.log('[v0] Contraseña ingresada:', cleanPassword, 'Largo:', cleanPassword.length);
     
     if (cleanPassword === '1967') {
       setPasswordError(false);
