@@ -224,7 +224,42 @@ export default function MonitorPage() {
       
       const chargesPerStation = {};
       
-      // Nota: El cálculo de todayCharges ahora se hace en el useEffect que depende de chargeHistory
+      // Calcular estadísticas HOY directamente desde sortedCharges
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      
+      let todayChargesCount = 0;
+      let todaySanctionableCount = 0;
+      let totalTodayMinutes = 0;
+      
+      sortedCharges.forEach(charge => {
+        const chargeTime = new Date(charge.timestamp);
+        if (chargeTime >= today && chargeTime < tomorrow) {
+          todayChargesCount++;
+          if (charge.durationMinutes > 0) {
+            totalTodayMinutes += charge.durationMinutes;
+          }
+          if (charge.isOverLimit) {
+            todaySanctionableCount++;
+          }
+        }
+      });
+      
+      const occupancyPercent = Math.min(100, Math.round((totalTodayMinutes / 11520) * 100));
+      setTodayCharges(todayChargesCount);
+      setTodaySanctionable(todaySanctionableCount);
+      setTodayOccupancy(occupancyPercent);
+      
+      // Guardar en localStorage
+      if (typeof window !== 'undefined') {
+        const todayStr = new Date().toDateString();
+        localStorage.setItem('cachedDate', todayStr);
+        localStorage.setItem('todayCharges', todayChargesCount.toString());
+        localStorage.setItem('todaySanctionable', todaySanctionableCount.toString());
+        localStorage.setItem('todayOccupancy', occupancyPercent.toString());
+      }
       
       // Calcular ocupancia por estación desde las 00:00
       const occupancyByStation = {};
@@ -232,81 +267,7 @@ export default function MonitorPage() {
     }
   }, [stateChanges]);
 
-  // Actualizar estadísticas HOY cuando chargeHistory cambie
-  useEffect(() => {
-    if (chargeHistory.length === 0) {
-      setTodayOccupancy(0);
-      setTodaySanctionable(0);
-      setTodayCharges(0);
-      return;
-    }
-    
-    // Definir rangos de hoy: desde 00:00 hasta 23:59:59
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    
-    let totalOccupiedTime = 0;
-    let todaySanctionableCount = 0;
-    let chargesCountedToday = 0;
-    const chargesByStation = {};
-    const sanctionableByStation = {};
-    
-    chargeHistory.forEach(charge => {
-      const chargeTime = new Date(charge.timestamp);
-      // Solo contar si la carga es HOY (>= hoy 00:00 y < mañana 00:00)
-      if (chargeTime >= today && chargeTime < tomorrow) {
-        chargesCountedToday++;
-        
-        // Mapeo para contar por estación
-        const STATION_ID_TO_NAME = {
-          '828537': 'Estacion Bus',
-          '828524': 'Avda. Roma',
-          '828534': 'Calle Almendralejo',
-          '828535': 'Calle Almendralejo',
-          '828523': 'Plaza Xirgu',
-          '828538': 'Avda. del Prado'
-        };
-        const stationName = STATION_ID_TO_NAME[charge.station_id] || charge.station_name;
-        chargesByStation[stationName] = (chargesByStation[stationName] || 0) + 1;
-        
-        // Sumar duración solo si es una carga completada
-        if (charge.durationMinutes && charge.durationMinutes > 0) {
-          totalOccupiedTime += charge.durationMinutes;
-        }
-        
-        // Contar como sancionable si excedió 2 horas
-        if (charge.isOverLimit) {
-          todaySanctionableCount++;
-          sanctionableByStation[stationName] = (sanctionableByStation[stationName] || 0) + 1;
-        }
-      }
-    });
-    
-    const MAX_DAILY_MINUTES = 11520;
-    
-    // Calcular porcentaje: máximo 11520 minutos al día
-    const occupancyPercent = Math.min(100, Math.round((totalOccupiedTime / MAX_DAILY_MINUTES) * 100));
-    
-    console.log('[v0] HOY updated - Charges:', chargesCountedToday, 'Occupancy:', occupancyPercent, 'Sanctionable:', todaySanctionableCount);
-    
-    setTodayOccupancy(occupancyPercent);
-    setTodaySanctionable(todaySanctionableCount);
-    setTodayCharges(chargesCountedToday);
-    setDailyChargesPerStation(chargesByStation);
-    setSanctionablePerStation(sanctionableByStation);
-    
-    // Guardar en localStorage para persistencia entre recargas
-    if (typeof window !== 'undefined') {
-      const todayStr = new Date().toDateString();
-      localStorage.setItem('cachedDate', todayStr);
-      localStorage.setItem('todayOccupancy', occupancyPercent.toString());
-      localStorage.setItem('todaySanctionable', todaySanctionableCount.toString());
-      localStorage.setItem('todayCharges', chargesCountedToday.toString());
-    }
-  }, [chargeHistory]);
+
 
   useEffect(() => {
     fetchData();
