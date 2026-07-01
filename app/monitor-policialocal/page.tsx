@@ -319,52 +319,70 @@ export default function PoliciaLocalPage() {
             </div>
           )}
 
-          {/* Conectores Ocupados (sancionables parpadean) */}
+          {/* Conectores Ocupados - Formato exacto de monitor */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {stations.map(station => {
-              // Filtrar conectores ocupados de esta estación
-              const stationConnectors = allOccupiedConnectors.filter(c => c.stationName === station.name);
-              
-              if (stationConnectors.length === 0) return null;
-              
-              return (
+            {stations
+              .filter(station => allOccupiedConnectors.some(c => c.stationName === station.name))
+              .map(station => (
                 <div
                   key={station.id}
-                  className="rounded-lg p-4 border bg-slate-700 border-slate-600 hover:border-slate-500 transition"
+                  className="rounded-lg p-4 border transition bg-slate-700 border-slate-600 hover:border-slate-500"
                 >
-                  <div className="mb-4">
-                    <h3 className="text-white font-bold text-2xl">{station.name}</h3>
+                  <div className="flex justify-between items-start mb-4">
+                    <div>
+                      <h3 className="text-white font-bold text-2xl">{station.name}</h3>
+                    </div>
+                    <div className="flex flex-col gap-2 items-end">
+                      <div className="flex items-center gap-1 text-red-500 font-bold text-sm">
+                        <span>⚠️</span>
+                        <span>{allOccupiedConnectors.filter(c => c.stationName === station.name && sanctionableIds.has(c.id)).length}</span>
+                      </div>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-1 gap-3 max-h-96 overflow-y-auto pr-2">
-                    {stationConnectors.map((connector, idx) => {
-                      const durationMinutes = Math.floor((Date.now() - new Date(connector.status_changed_at).getTime()) / 60000);
-                      const excessMinutes = durationMinutes - 120;
-                      const isSanctionable = sanctionableIds.has(connector.id);
-                      
-                      return (
-                        <div
-                          key={idx}
-                          className={`p-3 rounded-lg border-2 flex flex-col justify-center h-20 ${
-                            isSanctionable
-                              ? 'bg-red-900/70 border-red-500 animate-pulse'
-                              : 'bg-yellow-900/60 border-yellow-600'
-                          }`}
-                        >
-                          <div className="text-white">
-                            <div className="font-bold text-sm">{connector.visualRef || connector.id}</div>
-                            <div className="text-xs opacity-75 mt-1">{formatTime(connector.status_changed_at)}</div>
-                            {isSanctionable && (
-                              <div className="text-xs text-yellow-300 font-bold mt-1">+{excessMinutes} min</div>
-                            )}
+                    {station.connectors
+                      .filter(connector => allOccupiedConnectors.some(c => c.id === connector.id))
+                      .map((connector, idx) => {
+                        const isSanctionable = sanctionableIds.has(connector.id);
+                        
+                        return (
+                          <div key={idx} className="space-y-2">
+                            <div
+                              className={`p-3 rounded-lg border-2 flex flex-col justify-center h-20 ${getStatusColor(connector.status)} ${
+                                isSanctionable 
+                                  ? 'animate-pulse border-red-500 shadow-lg shadow-red-500' 
+                                  : ''
+                              }`}
+                              style={
+                                isSanctionable
+                                  ? {
+                                      animation: 'pulse 0.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                                      boxShadow: '0 0 20px rgba(239, 68, 68, 0.8)'
+                                    }
+                                  : {}
+                              }
+                            >
+                              <div className="text-xs opacity-75 mb-1">
+                                ID: {connector.visualRef || connector.id}
+                              </div>
+                              <div className="flex flex-col gap-1">
+                                <div className="flex items-baseline gap-3">
+                                  <span className="text-xl sm:text-2xl font-bold">
+                                    {connector.status === 'FREE' || connector.status === 'AVAILABLE' ? 'LIBRE' :
+                                     connector.status === 'OCCUPIED' ? 'OCUPADO' :
+                                     'FUERA DE SERVICIO'}
+                                  </span>
+                                  <span className="text-sm sm:text-lg font-semibold">{formatTime(connector.status_changed_at)}</span>
+                                </div>
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
                   </div>
                 </div>
-              );
-            })}
+              ))}
           </div>
 
           {/* Mensaje si no hay conectores ocupados */}
