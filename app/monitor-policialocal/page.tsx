@@ -201,6 +201,16 @@ export default function PoliciaLocalPage() {
     }
   };
 
+  const getStatusColor = (status) => {
+    if (status === 'FREE' || status === 'AVAILABLE') {
+      return 'bg-green-900 text-green-100 border-l-4 border-green-500';
+    }
+    if (status === 'OCCUPIED') {
+      return 'bg-red-900 text-red-100 border-l-4 border-red-500';
+    }
+    return 'bg-yellow-900 text-yellow-100 border-l-4 border-yellow-500';
+  };
+
   // Contraseñas válidas
   const VALID_PASSWORDS = ['NACHO', '1111', 'OSUNA', 'POLICIALOCAL'];
 
