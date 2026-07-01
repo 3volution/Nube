@@ -16,19 +16,23 @@ export function LoginRedirect() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Definir contraseñas válidas y sus destinos
-    const naachoPasswords = ['NACHO', 'Nacho', 'nacho', '1111'];
-    const policialocalPassword = 'POLICIALOCAL';
+    const cleanPassword = password.trim().toUpperCase();
+    
+    // Contraseñas para /monitor: "NACHO", "1111"
+    const monitorPasswords = ['NACHO', '1111'];
+    
+    // Contraseñas para /monitor-policialocal: "OSUNA", "POLICIALOCAL"
+    const policialocalPasswords = ['OSUNA', 'POLICIALOCAL'];
 
-    if (naachoPasswords.includes(password)) {
-      // Autenticar y redirigir a /monitor
-      sessionStorage.setItem('monitor-nacho', 'true');
+    if (monitorPasswords.includes(cleanPassword)) {
+      // Redirigir a /monitor
+      sessionStorage.setItem('monitor-auth', 'true');
       router.push('/monitor');
       setPassword('');
       setError('');
-    } else if (password === policialocalPassword) {
-      // Autenticar y redirigir a /monitor-policialocal
-      sessionStorage.setItem('monitor-policialocal', 'true');
+    } else if (policialocalPasswords.includes(cleanPassword)) {
+      // Redirigir a /monitor-policialocal
+      sessionStorage.setItem('policialocal-auth', 'true');
       router.push('/monitor-policialocal');
       setPassword('');
       setError('');
