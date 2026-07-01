@@ -209,6 +209,9 @@ export default function MonitorPage() {
       
       setChargeHistory(sortedCharges);
       
+      // Actualizar estadísticas HOY
+      updateTodayStats(sortedCharges);
+      
       // Calcular cargas del dia actual (desde las 00:00)
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -233,9 +236,9 @@ export default function MonitorPage() {
     }
   }, [stateChanges]);
 
-  // Recalcular estadísticas HOY cuando cambie chargeHistory
-  useEffect(() => {
-    if (chargeHistory.length === 0) {
+  // Función para actualizar estadísticas HOY - llamada manual desde fetchData
+  const updateTodayStats = (charges) => {
+    if (charges.length === 0) {
       setTodayOccupancy(0);
       setTodaySanctionable(0);
       setTodayCharges(0);
@@ -255,7 +258,7 @@ export default function MonitorPage() {
     const chargesByStation = {};
     const sanctionableByStation = {};
     
-    chargeHistory.forEach(charge => {
+    charges.forEach(charge => {
       const chargeTime = new Date(charge.timestamp);
       // Solo contar si la carga es HOY (>= hoy 00:00 y < mañana 00:00)
       if (chargeTime >= today && chargeTime < tomorrow) {
@@ -286,11 +289,12 @@ export default function MonitorPage() {
       }
     });
     
-
     const MAX_DAILY_MINUTES = 11520;
     
     // Calcular porcentaje: máximo 11520 minutos al día
     const occupancyPercent = Math.min(100, Math.round((totalOccupiedTime / MAX_DAILY_MINUTES) * 100));
+    
+    console.log('[v0] Updating HOY - Charges:', chargesCountedToday, 'Occupancy:', occupancyPercent, 'Sanctionable:', todaySanctionableCount);
     
     setTodayOccupancy(occupancyPercent);
     setTodaySanctionable(todaySanctionableCount);
@@ -300,13 +304,13 @@ export default function MonitorPage() {
     
     // Guardar en localStorage para persistencia entre recargas
     if (typeof window !== 'undefined') {
-      const today = new Date().toDateString();
-      localStorage.setItem('cachedDate', today);
+      const todayStr = new Date().toDateString();
+      localStorage.setItem('cachedDate', todayStr);
       localStorage.setItem('todayOccupancy', occupancyPercent.toString());
       localStorage.setItem('todaySanctionable', todaySanctionableCount.toString());
       localStorage.setItem('todayCharges', chargesCountedToday.toString());
     }
-  }, [chargeHistory]);
+  };
 
   useEffect(() => {
     fetchData();
