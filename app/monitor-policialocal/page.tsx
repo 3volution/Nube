@@ -333,6 +333,21 @@ export default function PoliciaLocalPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {stations
               .filter(station => allOccupiedConnectors.some(c => c.stationName === station.name))
+              .sort((stationA, stationB) => {
+                // Obtener el tiempo máximo de ocupación de cada estación
+                const stationAConnectors = allOccupiedConnectors.filter(c => c.stationName === stationA.name);
+                const stationBConnectors = allOccupiedConnectors.filter(c => c.stationName === stationB.name);
+                
+                const maxTimeA = Math.max(...stationAConnectors.map(c => 
+                  Date.now() - new Date(c.status_changed_at).getTime()
+                ));
+                const maxTimeB = Math.max(...stationBConnectors.map(c => 
+                  Date.now() - new Date(c.status_changed_at).getTime()
+                ));
+                
+                // Ordenar descendente (mayor tiempo primero)
+                return maxTimeB - maxTimeA;
+              })
               .map(station => (
                 <div
                   key={station.id}
