@@ -206,6 +206,12 @@ export default function MonitorPage() {
         .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
         .slice(0, 200); // Aumentado de 50 a 200
       
+      console.log('[v0] sortedCharges count:', sortedCharges.length);
+      if (sortedCharges.length > 0) {
+        console.log('[v0] sortedCharges[0]:', sortedCharges[0]);
+        console.log('[v0] sortedCharges[0].timestamp:', sortedCharges[0].timestamp);
+      }
+      
       setChargeHistory(sortedCharges);
       
       // Calcular cargas del dia actual (desde las 00:00)
@@ -231,15 +237,21 @@ export default function MonitorPage() {
         String(nowUTC.getUTCMonth() + 1).padStart(2, '0') + '-' + 
         String(nowUTC.getUTCDate()).padStart(2, '0');
       
+      console.log('[v0] HOY - todayDateString:', todayDateString);
+      
       let todayChargesCount = 0;
       let todaySanctionableCount = 0;
       let totalTodayMinutes = 0;
       
-      sortedCharges.forEach(charge => {
+      sortedCharges.forEach((charge, index) => {
         const chargeTime = new Date(charge.timestamp);
         const chargeDateString = chargeTime.getUTCFullYear() + '-' + 
           String(chargeTime.getUTCMonth() + 1).padStart(2, '0') + '-' + 
           String(chargeTime.getUTCDate()).padStart(2, '0');
+        
+        if (index === 0) {
+          console.log('[v0] HOY - first charge date:', chargeDateString, 'matches?', chargeDateString === todayDateString);
+        }
         
         // Comparar fechas en UTC
         if (chargeDateString === todayDateString) {
@@ -252,6 +264,8 @@ export default function MonitorPage() {
           }
         }
       });
+      
+      console.log('[v0] HOY final - todayChargesCount:', todayChargesCount, 'totalTodayMinutes:', totalTodayMinutes, 'todaySanctionableCount:', todaySanctionableCount);
       
       const occupancyPercent = Math.min(100, Math.round((totalTodayMinutes / 11520) * 100));
       setTodayCharges(todayChargesCount);
