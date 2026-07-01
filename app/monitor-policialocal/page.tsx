@@ -48,30 +48,7 @@ export default function PoliciaLocalPage() {
 
       if (changesRes.ok) {
         const changesData = await changesRes.json();
-        const changes = changesData.changes || [];
-        setStateChanges(changes);
-        
-        // Extraer historial de cargas completadas (transiciones OCCUPIED → FREE)
-        const uniqueCharges = new Map();
-        changes
-          .filter(change => change.new_status === 'FREE' || change.new_status === 'AVAILABLE')
-          .forEach(change => {
-            const key = `${change.connector_id}-${change.timestamp}`;
-            if (!uniqueCharges.has(key)) {
-              uniqueCharges.set(key, {
-                connector_id: change.connector_id,
-                timestamp: change.timestamp,
-                isCompleted: true,
-                isOverLimit: false
-              });
-            }
-          });
-        
-        const sortedCharges = Array.from(uniqueCharges.values())
-          .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-          .slice(0, 200);
-        
-        setChargeHistory(sortedCharges);
+        setStateChanges(changesData.changes || []);
       }
       setError(null);
     } catch (err) {
@@ -81,6 +58,85 @@ export default function PoliciaLocalPage() {
       setLoading(false);
     }
   };
+
+  // Extraer historial de cargas con estado (EXACTAMENTE igual a monitor)
+  useEffect(() => {
+    if (stateChanges.length > 0) {
+      // Ordenar cronologicamente
+      const sortedByTime = [...stateChanges].sort((a, b) => 
+        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+      );
+      
+      // Agrupar por conector
+      const changesByConnector: Record<string, any[]> = {};
+      sortedByTime.forEach(change => {
+        const key = change.connector_id;
+        if (!changesByConnector[key]) changesByConnector[key] = [];
+        changesByConnector[key].push(change);
+      });
+      
+      // Crear historial solo con cambios OCUPADO→FREE completados
+      const chargesWithStatus: any[] = [];
+      const processedEventIndices = new Set<string>();
+      
+      Object.values(changesByConnector).forEach(connectorChanges => {
+        for (let i = 0; i < connectorChanges.length; i++) {
+          const change = connectorChanges[i];
+          const eventKey = `${change.connector_id}-${change.timestamp}-${change.new_status}`;
+          if (processedEventIndices.has(eventKey)) continue;
+          
+          if (change.new_status !== 'FREE' && change.new_status !== 'AVAILABLE') {
+            const startTime = new Date(change.timestamp).getTime();
+            let endEvent = null;
+            
+            for (let j = i + 1; j < connectorChanges.length; j++) {
+              if (connectorChanges[j].new_status === 'FREE' || connectorChanges[j].new_status === 'AVAILABLE') {
+                endEvent = connectorChanges[j];
+                break;
+              }
+            }
+            
+            if (endEvent) {
+              const endTime = new Date(endEvent.timestamp).getTime();
+              const durationMinutes = Math.floor((endTime - startTime) / 60000);
+              
+              processedEventIndices.add(eventKey);
+              processedEventIndices.add(`${change.connector_id}-${endEvent.timestamp}-${endEvent.new_status}`);
+              
+              chargesWithStatus.push({
+                ...endEvent,
+                startTimestamp: change.timestamp,
+                isCompleted: true,
+                durationMinutes,
+                isOverLimit: durationMinutes > 120
+              });
+            }
+          }
+        }
+      });
+      
+      // Deduplicar cargas
+      const uniqueCharges = [];
+      const chargeKeys = new Set<string>();
+      
+      chargesWithStatus.forEach(charge => {
+        const chargeDate = new Date(charge.timestamp);
+        const chargeKey = `${charge.connector_id}-${chargeDate.getFullYear()}-${chargeDate.getMonth()}-${chargeDate.getDate()}-${chargeDate.getHours()}`;
+        
+        if (!chargeKeys.has(chargeKey)) {
+          chargeKeys.add(chargeKey);
+          uniqueCharges.push(charge);
+        }
+      });
+      
+      // Ordenar y limitar
+      const sortedCharges = uniqueCharges
+        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+        .slice(0, 200);
+      
+      setChargeHistory(sortedCharges);
+    }
+  }, [stateChanges]);
 
   useEffect(() => {
     fetchData();
