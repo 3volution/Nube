@@ -512,6 +512,8 @@ export default function MonitorPage() {
           
           {/* Daily Charge Counter - Two lines: HOY vs AHORA MISMO */}
           <div className="mt-4 space-y-3">
+            {/* DEBUG */}
+            {typeof window !== 'undefined' && console.log('[v0] HOY Debug - chargeHistory:', chargeHistory.length, 'todayCharges:', todayCharges, 'todayOccupancy:', todayOccupancy, 'todaySanctionable:', todaySanctionable)}
             {/* Línea 1: HOY */}
             <div className="flex items-center gap-6 text-lg flex-wrap bg-slate-800 bg-opacity-50 p-3 rounded">
               <span className="font-bold text-yellow-400">HOY:</span>
