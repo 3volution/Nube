@@ -8,10 +8,13 @@ export function LoginRedirect() {
   const [error, setError] = useState('');
   const router = useRouter();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    const p = password.trim().toUpperCase();
+    // Leer el valor directamente del formulario para evitar problemas con autorellenado
+    const formData = new FormData(e.currentTarget);
+    const rawPassword = (formData.get('password') as string) || password;
+    const p = rawPassword.trim().toUpperCase();
 
     if (p === 'NACHO' || p === '1111') {
       router.push('/monitor');
@@ -39,6 +42,7 @@ export function LoginRedirect() {
               </label>
               <input
                 id="password"
+                name="password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
