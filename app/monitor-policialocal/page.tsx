@@ -201,18 +201,23 @@ export default function PoliciaLocalPage() {
     }
   };
 
+  // Contraseñas válidas
+  const VALID_PASSWORDS = ['OSUNA', 'POLICIALOCAL'];
+
   // Función para validar contraseña
   const handlePasswordSubmit = (e) => {
     e.preventDefault();
     
     // Registrar intento en localStorage (exitoso o fallido)
     const accessLog = JSON.parse(localStorage.getItem('policiaLocalAccessLog') || '[]');
+    const isValid = VALID_PASSWORDS.includes(password.toUpperCase());
     
-    if (password === 'OSUNA') {
+    if (isValid) {
       accessLog.push({
         timestamp: new Date().toISOString(),
         date: new Date().toLocaleString('es-ES'),
-        status: 'success'
+        status: 'success',
+        password: password.toUpperCase()
       });
       localStorage.setItem('policiaLocalAccessLog', JSON.stringify(accessLog));
       
@@ -223,7 +228,8 @@ export default function PoliciaLocalPage() {
       accessLog.push({
         timestamp: new Date().toISOString(),
         date: new Date().toLocaleString('es-ES'),
-        status: 'failed'
+        status: 'failed',
+        password: password.toUpperCase()
       });
       localStorage.setItem('policiaLocalAccessLog', JSON.stringify(accessLog));
       

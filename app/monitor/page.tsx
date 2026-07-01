@@ -566,7 +566,12 @@ export default function MonitorPage() {
                       <div key={idx} className={`${bgColor} p-3 rounded flex justify-between items-center border-l-4 ${borderColor}`}>
                         <div className="flex items-center gap-3">
                           <span className={`${statusColor} font-bold text-lg`}>{statusIcon}</span>
-                          <span className="text-slate-300">#{accessLog.length - idx}</span>
+                          <div>
+                            <span className="text-slate-300">#{accessLog.length - idx}</span>
+                            <div className="text-xs text-slate-400 mt-1">
+                              Clave: <span className="text-slate-200 font-mono">{access.password || 'desconocida'}</span>
+                            </div>
+                          </div>
                         </div>
                         <span className="text-slate-300 font-mono text-sm">{access.date}</span>
                       </div>
