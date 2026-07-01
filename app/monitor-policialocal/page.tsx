@@ -229,7 +229,7 @@ export default function PoliciaLocalPage() {
                       </div>
                       <div>
                         <span className="text-sm opacity-75">Estado</span>
-                        <div className="text-lg font-bold">{isSanctionable ? '⚠️ SANCIONABLE' : '⏱️ Vigilado'}</div>
+                        <div className="text-lg font-bold">{isSanctionable ? '⚠️ SANCIONABLE' : '🔌 OCUPADO'}</div>
                       </div>
                       {isSanctionable && (
                         <div>
