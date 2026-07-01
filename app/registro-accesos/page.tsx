@@ -9,31 +9,29 @@ export default function RegistroAccesosPage() {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  const handlePasswordSubmit = (e) => {
+  const handlePasswordSubmit = async (e) => {
     e.preventDefault();
     const cleanPassword = password.trim().toUpperCase();
     
     if (cleanPassword === '1111') {
-      setIsAuthenticated(true);
       setPasswordError(false);
       setPassword('');
-      loadLogs();
+      setLoading(true);
+      
+      // Cargar logs primero
+      try {
+        const res = await fetch('/api/access-log');
+        const data = await res.json();
+        setLogs(data.logs || []);
+      } catch (err) {
+        console.error('[v0] Error cargando logs:', err);
+      } finally {
+        setLoading(false);
+        setIsAuthenticated(true);
+      }
     } else {
       setPasswordError(true);
       setPassword('');
-    }
-  };
-
-  const loadLogs = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch('/api/access-log');
-      const data = await res.json();
-      setLogs(data.logs || []);
-    } catch (err) {
-      console.error('[v0] Error cargando logs:', err);
-    } finally {
-      setLoading(false);
     }
   };
 
