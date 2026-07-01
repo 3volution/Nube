@@ -297,7 +297,11 @@ export default function PoliciaLocalPage() {
                               <div className="flex gap-8 text-sm text-slate-800">
                                 <div className="flex gap-2">
                                   <span className="font-semibold">Cargas:</span>
-                                  <span className="text-green-600 font-bold">-</span>
+                                  <span className="text-green-600 font-bold">{chargeHistory.filter(c => {
+                                    const prevDate = new Date(chargeHistory[idx - 1].timestamp).toLocaleDateString('es-ES');
+                                    const cDate = new Date(c.timestamp).toLocaleDateString('es-ES');
+                                    return cDate === prevDate;
+                                  }).length}</span>
                                 </div>
                                 <div className="flex gap-2">
                                   <span className="font-semibold">Ocupación:</span>
@@ -305,7 +309,11 @@ export default function PoliciaLocalPage() {
                                 </div>
                                 <div className="flex gap-2">
                                   <span className="text-lg">⚠️</span>
-                                  <span className="text-red-600 font-bold">-</span>
+                                  <span className="text-red-600 font-bold">{chargeHistory.filter(c => {
+                                    const prevDate = new Date(chargeHistory[idx - 1].timestamp).toLocaleDateString('es-ES');
+                                    const cDate = new Date(c.timestamp).toLocaleDateString('es-ES');
+                                    return cDate === prevDate && c.isOverLimit;
+                                  }).length}</span>
                                 </div>
                               </div>
                             </div>
