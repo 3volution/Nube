@@ -72,16 +72,16 @@ export default function MonitorPage() {
   const [error, setError] = useState(null);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [activeWatchers, setActiveWatchers] = useState({});
-  const [watcherModal, setWatcherModal] = useState({ isOpen: false, station: null });
+  const [showAccessLog, setShowAccessLog] = useState(false);
+  const [accessLog, setAccessLog] = useState([]);
 
-  // Orden personalizado de estaciones
-  const STATION_ORDER = {
-    828537: 0, // Estacion Bus
-    828524: 1, // Avda. Roma
-    828534: 2, // Calle Almendralejo (1)
-    828535: 3, // Calle Almendralejo (2)
-    828523: 4, // Plaza Xirgu
-    828538: 5  // Avda. del Prado
+  // Cargar y mostrar log de accesos a policialocal
+  const handleShowAccessLog = () => {
+    if (typeof window !== 'undefined') {
+      const log = JSON.parse(localStorage.getItem('policiaLocalAccessLog') || '[]');
+      setAccessLog(log);
+      setShowAccessLog(true);
+    }
   };
 
   const fetchData = async () => {
@@ -527,7 +527,49 @@ export default function MonitorPage() {
               </div>
             </div>
           </div>
+          
+          {/* Botón de Accesos a Policía Local */}
+          <div className="mt-4">
+            <button
+              onClick={handleShowAccessLog}
+              className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded transition duration-200"
+            >
+              📋 Accesos Policía Local
+            </button>
+          </div>
         </div>
+
+        {/* Modal de Accesos */}
+        {showAccessLog && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-slate-800 rounded-lg p-6 max-w-2xl w-full max-h-96 overflow-y-auto">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-2xl font-bold text-white">Historial de Accesos - Policía Local</h2>
+                <button
+                  onClick={() => setShowAccessLog(false)}
+                  className="text-slate-400 hover:text-white text-2xl"
+                >
+                  ✕
+                </button>
+              </div>
+              
+              {accessLog.length > 0 ? (
+                <div className="space-y-2">
+                  {accessLog.map((access, idx) => (
+                    <div key={idx} className="bg-slate-700 p-3 rounded flex justify-between items-center">
+                      <span className="text-slate-300">#{accessLog.length - idx}</span>
+                      <span className="text-green-400 font-mono">{access.date}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-slate-400 text-center py-6">
+                  Sin registros de acceso
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Error Alert */}
         {error && (
