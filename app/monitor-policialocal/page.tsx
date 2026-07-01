@@ -201,26 +201,22 @@ export default function PoliciaLocalPage() {
     }
   };
 
+  // Contraseñas válidas
+  const VALID_PASSWORDS = ['NACHO', '1111', 'OSUNA', 'POLICIALOCAL'];
+
   // Función para validar contraseña
   const handlePasswordSubmit = (e) => {
     e.preventDefault();
-    if (password === 'OSUNA') {
+    // Validar: trim para espacios, toUpperCase para mayúsculas
+    const cleanPassword = password.trim().toUpperCase();
+    
+    if (VALID_PASSWORDS.includes(cleanPassword)) {
       setIsAuthenticated(true);
       setPasswordError(false);
       setPassword('');
     } else {
       setPasswordError(true);
       setPassword('');
-    }
-  };
-
-  // Función para limpiar localStorage
-  const handleClearLocalStorage = () => {
-    if (typeof window !== 'undefined') {
-      localStorage.clear();
-      setPassword('');
-      setPasswordError(false);
-      alert('Datos locales borrados. Intenta de nuevo.');
     }
   };
 
@@ -287,13 +283,6 @@ export default function PoliciaLocalPage() {
               Acceder
             </button>
           </form>
-          
-          <button
-            onClick={handleClearLocalStorage}
-            className="w-full mt-4 bg-slate-600 hover:bg-slate-700 text-slate-200 text-sm py-2 px-4 rounded-lg transition duration-200"
-          >
-            Limpiar Datos Locales
-          </button>
         </div>
       </div>
     );
