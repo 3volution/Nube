@@ -204,29 +204,11 @@ export default function PoliciaLocalPage() {
   // Función para validar contraseña
   const handlePasswordSubmit = (e) => {
     e.preventDefault();
-    
-    // Registrar intento en localStorage (exitoso o fallido)
-    const accessLog = JSON.parse(localStorage.getItem('policiaLocalAccessLog') || '[]');
-    
     if (password === 'OSUNA') {
-      accessLog.push({
-        timestamp: new Date().toISOString(),
-        date: new Date().toLocaleString('es-ES'),
-        status: 'success'
-      });
-      localStorage.setItem('policiaLocalAccessLog', JSON.stringify(accessLog));
-      
       setIsAuthenticated(true);
       setPasswordError(false);
       setPassword('');
     } else {
-      accessLog.push({
-        timestamp: new Date().toISOString(),
-        date: new Date().toLocaleString('es-ES'),
-        status: 'failed'
-      });
-      localStorage.setItem('policiaLocalAccessLog', JSON.stringify(accessLog));
-      
       setPasswordError(true);
       setPassword('');
     }
@@ -362,7 +344,7 @@ export default function PoliciaLocalPage() {
                       </div>
                       <div>
                         <span className="text-sm opacity-75">Estado</span>
-                        <div className="text-lg font-bold">{isSanctionable ? '⚠�� SANCIONABLE' : '🔌 OCUPADO'}</div>
+                        <div className="text-lg font-bold">{isSanctionable ? '⚠️ SANCIONABLE' : '🔌 OCUPADO'}</div>
                       </div>
                       {isSanctionable && (
                         <div>
