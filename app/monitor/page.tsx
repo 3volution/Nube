@@ -19,22 +19,49 @@ export default function MonitorPage() {
   const [todayCharges, setTodayCharges] = useState(() => {
     // Intentar cargar valor anterior de localStorage
     if (typeof window !== 'undefined') {
-      const cached = localStorage.getItem('todayCharges');
-      return cached ? parseInt(cached) : 0;
+      const cachedDate = localStorage.getItem('cachedDate');
+      const today = new Date().toDateString();
+      
+      // Si el cache es del mismo día, reutilizar; sino, resetear
+      if (cachedDate === today) {
+        const cached = localStorage.getItem('todayCharges');
+        return cached ? parseInt(cached) : 0;
+      } else {
+        localStorage.setItem('cachedDate', today);
+        return 0;
+      }
     }
     return 0;
   }); // Total cargas HOY desde 00:00
   const [todayOccupancy, setTodayOccupancy] = useState(() => {
+    // Intentar cargar valor anterior de localStorage
     if (typeof window !== 'undefined') {
-      const cached = localStorage.getItem('todayOccupancy');
-      return cached ? parseInt(cached) : 0;
+      const cachedDate = localStorage.getItem('cachedDate');
+      const today = new Date().toDateString();
+      
+      // Si el cache es del mismo día, reutilizar; sino, resetear
+      if (cachedDate === today) {
+        const cached = localStorage.getItem('todayOccupancy');
+        return cached ? parseInt(cached) : 0;
+      } else {
+        return 0;
+      }
     }
     return 0;
   }); // Ocupación promedio HOY
   const [todaySanctionable, setTodaySanctionable] = useState(() => {
+    // Intentar cargar valor anterior de localStorage
     if (typeof window !== 'undefined') {
-      const cached = localStorage.getItem('todaySanctionable');
-      return cached ? parseInt(cached) : 0;
+      const cachedDate = localStorage.getItem('cachedDate');
+      const today = new Date().toDateString();
+      
+      // Si el cache es del mismo día, reutilizar; sino, resetear
+      if (cachedDate === today) {
+        const cached = localStorage.getItem('todaySanctionable');
+        return cached ? parseInt(cached) : 0;
+      } else {
+        return 0;
+      }
     }
     return 0;
   }); // Total sancionables HOY
@@ -61,7 +88,7 @@ export default function MonitorPage() {
     try {
       const [stationsRes, changesRes, logsRes] = await Promise.all([
         fetch('/api/stations'),
-        fetch('/api/state-changes?limit=200'),
+        fetch('/api/state-changes?limit=2000'),
         fetch('/api/logs?limit=100')
       ]);
 
@@ -174,11 +201,16 @@ export default function MonitorPage() {
         }
       });
       
-      // Ordenar por fecha descendente, filtrar solo completadas y limitar a 200
+      // Ordenar por fecha descendente y limitar a 200
       const sortedCharges = uniqueCharges
-        .filter(charge => charge.isCompleted) // Solo mostrar cargas completadas
         .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
         .slice(0, 200); // Aumentado de 50 a 200
+      
+      console.log('[v0] sortedCharges count:', sortedCharges.length);
+      if (sortedCharges.length > 0) {
+        console.log('[v0] sortedCharges[0]:', sortedCharges[0]);
+        console.log('[v0] sortedCharges[0].timestamp:', sortedCharges[0].timestamp);
+      }
       
       setChargeHistory(sortedCharges);
       
@@ -198,7 +230,56 @@ export default function MonitorPage() {
       
       const chargesPerStation = {};
       
-      // Nota: El cálculo de todayCharges ahora se hace en el useEffect que depende de chargeHistory
+      // Calcular estadísticas HOY directamente desde sortedCharges
+      // Comparar fechas en UTC para evitar problemas de zona horaria
+      const nowUTC = new Date();
+      const todayDateString = nowUTC.getUTCFullYear() + '-' + 
+        String(nowUTC.getUTCMonth() + 1).padStart(2, '0') + '-' + 
+        String(nowUTC.getUTCDate()).padStart(2, '0');
+      
+      console.log('[v0] HOY - todayDateString:', todayDateString);
+      
+      let todayChargesCount = 0;
+      let todaySanctionableCount = 0;
+      let totalTodayMinutes = 0;
+      
+      sortedCharges.forEach((charge, index) => {
+        const chargeTime = new Date(charge.timestamp);
+        const chargeDateString = chargeTime.getUTCFullYear() + '-' + 
+          String(chargeTime.getUTCMonth() + 1).padStart(2, '0') + '-' + 
+          String(chargeTime.getUTCDate()).padStart(2, '0');
+        
+        if (index === 0) {
+          console.log('[v0] HOY - first charge date:', chargeDateString, 'matches?', chargeDateString === todayDateString);
+        }
+        
+        // Comparar fechas en UTC
+        if (chargeDateString === todayDateString) {
+          todayChargesCount++;
+          if (charge.durationMinutes > 0) {
+            totalTodayMinutes += charge.durationMinutes;
+          }
+          if (charge.isOverLimit) {
+            todaySanctionableCount++;
+          }
+        }
+      });
+      
+      console.log('[v0] HOY final - todayChargesCount:', todayChargesCount, 'totalTodayMinutes:', totalTodayMinutes, 'todaySanctionableCount:', todaySanctionableCount);
+      
+      const occupancyPercent = Math.min(100, Math.round((totalTodayMinutes / 11520) * 100));
+      setTodayCharges(todayChargesCount);
+      setTodaySanctionable(todaySanctionableCount);
+      setTodayOccupancy(occupancyPercent);
+      
+      // Guardar en localStorage
+      if (typeof window !== 'undefined') {
+        const todayStr = new Date().toDateString();
+        localStorage.setItem('cachedDate', todayStr);
+        localStorage.setItem('todayCharges', todayChargesCount.toString());
+        localStorage.setItem('todaySanctionable', todaySanctionableCount.toString());
+        localStorage.setItem('todayOccupancy', occupancyPercent.toString());
+      }
       
       // Calcular ocupancia por estación desde las 00:00
       const occupancyByStation = {};
@@ -206,76 +287,7 @@ export default function MonitorPage() {
     }
   }, [stateChanges]);
 
-  // Recalcular estadísticas HOY cuando cambie chargeHistory
-  useEffect(() => {
-    if (chargeHistory.length === 0) {
-      setTodayOccupancy(0);
-      setTodaySanctionable(0);
-      return;
-    }
-    
-    // Definir rangos de hoy: desde 00:00 hasta 23:59:59
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    
-    let totalOccupiedTime = 0;
-    let todaySanctionableCount = 0;
-    let chargesCountedToday = 0;
-    const chargesByStation = {};
-    const sanctionableByStation = {};
-    
-    chargeHistory.forEach(charge => {
-      const chargeTime = new Date(charge.timestamp);
-      // Solo contar si la carga es HOY (>= hoy 00:00 y < mañana 00:00)
-      if (chargeTime >= today && chargeTime < tomorrow) {
-        chargesCountedToday++;
-        
-        // Mapeo para contar por estación
-        const STATION_ID_TO_NAME = {
-          '828537': 'Estacion Bus',
-          '828524': 'Avda. Roma',
-          '828534': 'Calle Almendralejo',
-          '828535': 'Calle Almendralejo',
-          '828523': 'Plaza Xirgu',
-          '828538': 'Avda. del Prado'
-        };
-        const stationName = STATION_ID_TO_NAME[charge.station_id] || charge.station_name;
-        chargesByStation[stationName] = (chargesByStation[stationName] || 0) + 1;
-        
-        // Sumar duración solo si es una carga completada
-        if (charge.durationMinutes && charge.durationMinutes > 0) {
-          totalOccupiedTime += charge.durationMinutes;
-        }
-        
-        // Contar como sancionable si excedió 2 horas
-        if (charge.isOverLimit) {
-          todaySanctionableCount++;
-          sanctionableByStation[stationName] = (sanctionableByStation[stationName] || 0) + 1;
-        }
-      }
-    });
-    
-    const MAX_DAILY_MINUTES = 11520;
-    
-    // Calcular porcentaje: máximo 11520 minutos al día
-    const occupancyPercent = Math.min(100, Math.round((totalOccupiedTime / MAX_DAILY_MINUTES) * 100));
-    
-    setTodayOccupancy(occupancyPercent);
-    setTodaySanctionable(todaySanctionableCount);
-    setTodayCharges(chargesCountedToday);
-    setDailyChargesPerStation(chargesByStation);
-    setSanctionablePerStation(sanctionableByStation);
-    
-    // Guardar en localStorage para persistencia entre recargas
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('todayOccupancy', occupancyPercent.toString());
-      localStorage.setItem('todaySanctionable', todaySanctionableCount.toString());
-      localStorage.setItem('todayCharges', chargesCountedToday.toString());
-    }
-  }, [chargeHistory]);
+
 
   useEffect(() => {
     fetchData();
@@ -479,8 +491,7 @@ export default function MonitorPage() {
           <h1 className="text-4xl font-bold text-white mb-2">HackerCharger Mérida <span className="text-lg text-slate-400">{APP_VERSION}</span></h1>
           <p className="text-slate-300">Sistema de monitoreo de cargadores eléctricos de vehículos en tiempo real</p>
           
-          {/* Daily Charge Counter - Two lines: HOY vs AHORA MISMO - Only show if we have charge data */}
-          {chargeHistory.length > 0 ? (
+          {/* Daily Charge Counter - Two lines: HOY vs AHORA MISMO */}
           <div className="mt-4 space-y-3">
             {/* Línea 1: HOY */}
             <div className="flex items-center gap-6 text-lg flex-wrap bg-slate-800 bg-opacity-50 p-3 rounded">
@@ -516,7 +527,6 @@ export default function MonitorPage() {
               </div>
             </div>
           </div>
-          ) : null}
         </div>
 
         {/* Error Alert */}

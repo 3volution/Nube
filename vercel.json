@@ -11,7 +11,7 @@
     },
     {
       "path": "/api/watcher/check",
-      "schedule": "0 9 * * *"
+      "schedule": "*/1 * * * *"
     }
   ]
 }
