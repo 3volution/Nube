@@ -373,30 +373,6 @@ export default function PoliciaLocalPage() {
               ✅ No hay conectores ocupados en este momento
             </div>
           )}
-          )}
-          )}
-                      <div>
-                        <span className="text-sm opacity-75">ID Conector</span>
-                        <div className="text-lg font-bold">{connector.visualRef || connector.id}</div>
-                      </div>
-                      <div>
-                        <span className="text-sm opacity-75">Tiempo Total</span>
-                        <div className="text-lg font-bold">{formatTime(connector.status_changed_at)}</div>
-                      </div>
-                      <div>
-                        <span className="text-sm opacity-75">Estado</span>
-                        <div className="text-lg font-bold">{isSanctionable ? '⚠�� SANCIONABLE' : '🔌 OCUPADO'}</div>
-                      </div>
-                      {isSanctionable && (
-                        <div>
-                          <span className="text-sm opacity-75">Exceso</span>
-                          <div className="text-lg font-bold text-yellow-300">+{excessMinutes} min</div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })
             ) : (
               <div className="bg-green-900 border-l-4 border-green-500 text-green-100 p-6 rounded text-center text-lg font-bold">
                 ✅ No hay conectores ocupados en este momento
