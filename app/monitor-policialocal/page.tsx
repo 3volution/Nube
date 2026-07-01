@@ -214,6 +214,16 @@ export default function PoliciaLocalPage() {
     }
   };
 
+  // Función para limpiar localStorage
+  const handleClearLocalStorage = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.clear();
+      setPassword('');
+      setPasswordError(false);
+      alert('Datos locales borrados. Intenta de nuevo.');
+    }
+  };
+
   // Obtener TODOS los conectores ocupados
   const allOccupiedConnectors = stations
     .flatMap(station => 
@@ -277,6 +287,13 @@ export default function PoliciaLocalPage() {
               Acceder
             </button>
           </form>
+          
+          <button
+            onClick={handleClearLocalStorage}
+            className="w-full mt-4 bg-slate-600 hover:bg-slate-700 text-slate-200 text-sm py-2 px-4 rounded-lg transition duration-200"
+          >
+            Limpiar Datos Locales
+          </button>
         </div>
       </div>
     );
@@ -344,7 +361,7 @@ export default function PoliciaLocalPage() {
                       </div>
                       <div>
                         <span className="text-sm opacity-75">Estado</span>
-                        <div className="text-lg font-bold">{isSanctionable ? '⚠️ SANCIONABLE' : '🔌 OCUPADO'}</div>
+                        <div className="text-lg font-bold">{isSanctionable ? '⚠�� SANCIONABLE' : '🔌 OCUPADO'}</div>
                       </div>
                       {isSanctionable && (
                         <div>
