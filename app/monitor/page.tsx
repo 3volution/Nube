@@ -367,16 +367,28 @@ export default function MonitorPage() {
     return () => clearInterval(reloadInterval);
   }, []);
 
-  // Temporizador de 2 minutos: cierra sesión después de 120 segundos
+  // Validar sesión: auto-logout después de 120 segundos usando sessionStorage
   useEffect(() => {
-    const timeout = setTimeout(() => {
-      // Limpiar todos los intervalos
-      intervals.forEach(interval => clearInterval(interval));
-      // Redirigir al login
-      window.location.href = '/';
-    }, 120000); // 120 segundos = 2 minutos
+    const SESSION_KEY = 'monitor_session_start';
+    const SESSION_TIMEOUT = 120000; // 120 segundos = 2 minutos
 
-    return () => clearTimeout(timeout);
+    // Obtener tiempo de inicio de sesión
+    const storedStartTime = sessionStorage.getItem(SESSION_KEY);
+
+    if (!storedStartTime) {
+      // Primera visita: guardar tiempo actual
+      sessionStorage.setItem(SESSION_KEY, Date.now().toString());
+    } else {
+      // Comprobar cuánto tiempo ha pasado
+      const elapsedTime = Date.now() - parseInt(storedStartTime, 10);
+
+      if (elapsedTime > SESSION_TIMEOUT) {
+        // Más de 2 minutos: limpiar sesión y redirigir
+        sessionStorage.removeItem(SESSION_KEY);
+        intervals.forEach(interval => clearInterval(interval));
+        window.location.href = '/';
+      }
+    }
   }, [intervals]);
 
   // Función para calcular tiempo transcurrido (igual que en Scriptable)
