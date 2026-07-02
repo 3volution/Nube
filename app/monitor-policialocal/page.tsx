@@ -130,11 +130,13 @@ export default function PoliciaLocalPage() {
         }
       });
       
-      // Ordenar y limitar
+      // Ordenar por fecha descendente (más reciente primero), filtrar últimos 30 días
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       const sortedCharges = uniqueCharges
         .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-        .slice(0, 200);
-      
+        .filter(c => new Date(c.timestamp).getTime() >= thirtyDaysAgo.getTime());
+
       setChargeHistory(sortedCharges);
     }
   }, [stateChanges]);
@@ -367,23 +369,26 @@ export default function PoliciaLocalPage() {
             <h2 className="text-2xl font-bold text-white mb-4">Histórico de Cargas Sancionables</h2>
             <div className="bg-slate-800 rounded-lg overflow-hidden">
               {chargeHistory.filter(c => c.isOverLimit).length > 0 ? (
-                <div className="max-h-96 overflow-y-auto">
+                <div className="max-h-[80vh] overflow-y-auto">
                   {chargeHistory.filter(c => c.isOverLimit).map((charge, idx) => {
+                    const filteredCharges = chargeHistory.filter(c => c.isOverLimit);
                     const timestamp = new Date(charge.timestamp);
                     const timeStr = timestamp.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
                     const dateStr = timestamp.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
                     
-                    // Detectar si es el primer elemento o cambio de fecha
+                    // Detectar cambio de día (más reciente primero)
                     let showDaySeparator = idx === 0;
                     if (idx > 0) {
-                      const filteredCharges = chargeHistory.filter(c => c.isOverLimit);
                       const prevTimestamp = new Date(filteredCharges[idx - 1].timestamp);
-                      const currentDate = new Date(timestamp).toLocaleDateString('es-ES');
-                      const prevDate = new Date(prevTimestamp).toLocaleDateString('es-ES');
-                      showDaySeparator = currentDate !== prevDate;
+                      showDaySeparator = timestamp.toLocaleDateString('es-ES') !== prevTimestamp.toLocaleDateString('es-ES');
                     }
+
+                    // Estadísticas reales del día
+                    const dayOverLimit = filteredCharges.filter(c =>
+                      new Date(c.timestamp).toLocaleDateString('es-ES') === timestamp.toLocaleDateString('es-ES')
+                    ).length;
                     
-                    // Formato duracion: solo minutos o horas:minutos
+                    // Formato duracion
                     const mins = charge.durationMinutes || 0;
                     const durationStr = mins >= 60 
                       ? `${Math.floor(mins / 60)}h ${mins % 60}m` 
@@ -391,11 +396,14 @@ export default function PoliciaLocalPage() {
                     
                     return (
                       <div key={idx}>
-                        {/* Separador de día a las 23:59 */}
-                        {showDaySeparator && idx > 0 && (
+                        {/* Separador de día con estadísticas reales */}
+                        {showDaySeparator && (
                           <div className="bg-slate-200 px-3 py-3 border-b-2 border-slate-400">
-                            <div className="font-bold text-slate-900 text-sm">
-                              DÍA ANTERIOR - 23:59 HORAS
+                            <div className="font-bold text-slate-900 text-sm mb-1">
+                              {timestamp.toLocaleDateString('es-ES', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' }).toUpperCase()}
+                            </div>
+                            <div className="text-sm text-slate-800">
+                              Sancionables: <span className="text-red-600 font-bold">{dayOverLimit}</span>
                             </div>
                           </div>
                         )}

@@ -201,16 +201,12 @@ export default function MonitorPage() {
         }
       });
       
-      // Ordenar por fecha descendente y limitar a 200
+      // Ordenar por fecha descendente (más reciente primero), filtrar últimos 30 días
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       const sortedCharges = uniqueCharges
         .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-        .slice(0, 200); // Aumentado de 50 a 200
-      
-      console.log('[v0] sortedCharges count:', sortedCharges.length);
-      if (sortedCharges.length > 0) {
-        console.log('[v0] sortedCharges[0]:', sortedCharges[0]);
-        console.log('[v0] sortedCharges[0].timestamp:', sortedCharges[0].timestamp);
-      }
+        .filter(c => new Date(c.timestamp).getTime() >= thirtyDaysAgo.getTime());
       
       setChargeHistory(sortedCharges);
       
@@ -670,7 +666,7 @@ export default function MonitorPage() {
             <div className="mt-8">
               <h2 className="text-2xl font-bold text-white mb-4">Historico de Cargas</h2>
               <div className="border border-slate-600 rounded-lg overflow-hidden">
-                <div className="max-h-[400px] overflow-y-auto">
+                <div className="max-h-[80vh] overflow-y-auto">
                   {chargeHistory.length > 0 ? (
                     <div>
                       {chargeHistory.map((charge, idx) => {
@@ -678,14 +674,21 @@ export default function MonitorPage() {
                         const timeStr = timestamp.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
                         const dateStr = timestamp.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
                         
-                        // Detectar si es el primer elemento o cambio de fecha
+                        // Detectar cambio de día (más reciente primero, separador cuando cambia el día)
                         let showDaySeparator = idx === 0;
                         if (idx > 0) {
                           const prevTimestamp = new Date(chargeHistory[idx - 1].timestamp);
-                          const currentDate = new Date(timestamp).toLocaleDateString('es-ES');
-                          const prevDate = new Date(prevTimestamp).toLocaleDateString('es-ES');
+                          const currentDate = timestamp.toLocaleDateString('es-ES');
+                          const prevDate = prevTimestamp.toLocaleDateString('es-ES');
                           showDaySeparator = currentDate !== prevDate;
                         }
+
+                        // Calcular estadísticas reales del día actual del separador
+                        const dayCharges = chargeHistory.filter(c => 
+                          new Date(c.timestamp).toLocaleDateString('es-ES') === timestamp.toLocaleDateString('es-ES')
+                        );
+                        const dayCompleted = dayCharges.filter(c => c.isCompleted).length;
+                        const dayOverLimit = dayCharges.filter(c => c.isOverLimit).length;
                         
                         // Formato duracion: solo minutos o horas:minutos
                         const mins = charge.durationMinutes || 0;
@@ -694,32 +697,28 @@ export default function MonitorPage() {
                           : `${mins}m`;
                         
                         // Color de fondo segun estado
-                        let bgColor = 'bg-slate-700'; // Gris - en progreso
+                        let bgColor = 'bg-slate-700';
                         if (charge.isCompleted) {
                           bgColor = charge.isOverLimit ? 'bg-red-900/70' : 'bg-green-900/50';
                         }
                         
                         return (
                           <div key={idx}>
-                            {/* Línea de fin de día anterior si hay cambio de fecha */}
-                            {showDaySeparator && idx > 0 && (
+                            {/* Separador de día con estadísticas reales */}
+                            {showDaySeparator && (
                               <div className="bg-slate-200 px-3 py-3 flex items-center justify-between border-b-2 border-slate-400">
                                 <div className="flex-1">
                                   <div className="font-bold text-slate-900 text-sm mb-2">
-                                    RESUMEN DEL DÍA ANTERIOR - 23:59 HORAS
+                                    {timestamp.toLocaleDateString('es-ES', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' }).toUpperCase()}
                                   </div>
                                   <div className="flex gap-8 text-sm text-slate-800">
                                     <div className="flex gap-2">
                                       <span className="font-semibold">Cargas:</span>
-                                      <span className="text-green-600 font-bold">12</span>
+                                      <span className="text-green-600 font-bold">{dayCompleted}</span>
                                     </div>
                                     <div className="flex gap-2">
-                                      <span className="font-semibold">Ocupación:</span>
-                                      <span className="text-blue-600 font-bold">68%</span>
-                                    </div>
-                                    <div className="flex gap-2">
-                                      <span className="text-lg">⚠️</span>
-                                      <span className="text-red-600 font-bold">3</span>
+                                      <span className="font-semibold">Sancionables:</span>
+                                      <span className="text-red-600 font-bold">{dayOverLimit}</span>
                                     </div>
                                   </div>
                                 </div>

@@ -1,0 +1,34 @@
+{
+  "logs": [
+    {
+      "password": "POLICIA",
+      "status": "success",
+      "date": "2/7/2026, 8:45:51",
+      "timestamp": "2026-07-02T06:45:51.793Z"
+    },
+    {
+      "password": "OSUNA",
+      "status": "success",
+      "date": "2/7/2026, 8:46:15",
+      "timestamp": "2026-07-02T06:46:15.683Z"
+    },
+    {
+      "password": "NACHO",
+      "status": "success",
+      "date": "2/7/2026, 8:46:47",
+      "timestamp": "2026-07-02T06:46:47.005Z"
+    },
+    {
+      "password": "1967",
+      "status": "success",
+      "date": "2/7/2026, 8:47:10",
+      "timestamp": "2026-07-02T06:47:10.938Z"
+    },
+    {
+      "password": "NACHO",
+      "status": "success",
+      "date": "2/7/2026, 8:47:35",
+      "timestamp": "2026-07-02T06:47:35.347Z"
+    }
+  ]
+}
