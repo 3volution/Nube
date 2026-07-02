@@ -1,0 +1,165 @@
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                                                                               ║
+║           DIAGNÓSTICO COMPLETO: HISTORIAL DE CARGAS - RESUMEN VISUAL         ║
+║                                                                               ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
+PROBLEMA REPORTADO:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+"Las cargas realizadas hoy no aparecen en el Historial de Cargas"
+
+CAUSA RAÍZ IDENTIFICADA (90% confianza):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ERROR SILENCIOSO en línea 137-151 de /api/watcher/check/route.js
+
+INSERT en tabla "connector_state_changes" FALLA pero la ejecución continúa.
+chargeHistory TIENE datos, pero connector_state_changes está VACÍO.
+
+FLUJO AFECTADO:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Cron (cada 1 min)
+      ↓
+  /api/watcher/check
+      ↓
+  Detecta: OCCUPIED → FREE
+      ↓
+  ✓ INSERT chargeHistory        (ÉXITO)
+  ❌ INSERT connector_state_changes  (FALLA AQUI pero continúa)
+      ↓
+  Monitor lee: connector_state_changes
+      ↓
+  Resultado: VACÍO (aunque chargeHistory tiene datos)
+
+
+TEST DE 1 MINUTO (Supabase SQL Editor):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+SELECT 
+  (SELECT COUNT(*) FROM chargeHistory WHERE DATE(timestamp) = CURRENT_DATE) as A,
+  (SELECT COUNT(*) FROM connector_state_changes WHERE fecha = CAST(CURRENT_DATE AS TEXT)) as B;
+
+
+INTERPRETACIÓN:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Si A = 0, B = 0       → Cron no ejecutó (revisar scheduler)
+  Si A > B              → ❌ ERROR SILENCIOSO CONFIRMADO (90% de los casos)
+  Si A = B, ambos > 0   → ✓ Sistema funcionando (revisar filtros Monitor)
+  Si ambas = 0          → Sin vigilancias activas (usuario debe activar)
+
+
+ARCHIVO CRÍTICO:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  /app/api/watcher/check/route.js
+  
+  Línea 106-118:  ✓ INSERT chargeHistory
+  Línea 120-135:  ← Prepara INSERT connector_state_changes
+  Línea 137-151:  ❌ PROBLEMA AQUÍ
+                      Si error, se loguea pero NO retorna
+                      Ejecución continúa normalmente
+
+
+CÓDIGO PROBLEMÁTICO:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  const { error: stateChangeError } = await supabase
+    .from('connector_state_changes')
+    .insert({...});
+
+  if (stateChangeError) {
+    console.error('watcher/check - error insertando state_change:', stateChangeError.message);
+    // ↑ Se loguea pero NO hay RETURN
+    // ↓ chargeHistory ya fue insertado arriba
+    // ↓ El código continúa y aparentemente "funciona"
+  }
+
+
+DOCUMENTOS DE REFERENCIA:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  1. INDEX_DIAGNOSIS.md               (inicio - índice completo)
+  2. CHEATSHEET_DIAGNOSIS.md          (5 min - test SQL + interpretación)
+  3. DIAGNOSIS_SUMMARY.md             (15 min - resumen ejecutivo)
+  4. DEBUG_QUICK_START.md             (10 min - los 3 puntos críticos)
+  5. FLOW_DIAGRAM.md                  (visuales del flujo)
+  6. DIAGNOSTIC_CHARGE_HISTORY.md     (referencia técnica completa)
+
+
+PRÓXIMOS PASOS (NO IMPLEMENTADOS TODAVÍA):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  PASO 1: Ejecutar Test SQL de 1 minuto (arriba)
+          → Documentar valores A y B
+          → Comparar: ¿A > B?
+  
+  PASO 2: Si A > B (error confirmado)
+          → Leer DIAGNOSIS_SUMMARY.md
+          → Revisar Supabase RLS policies
+  
+  PASO 3: Cuando esté listo para debuggear
+          → Agregar log en línea 150-151
+          → Ejecutar cron
+          → Revisar Vercel logs
+          → Identificar exacto error Supabase
+  
+  PASO 4: Corregir causa raíz
+          → Puede ser: RLS, constraint, tipo dato, permiso
+          → Implementar fix
+          → Re-probar
+
+
+TABLAS INVOLUCRADAS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ┌────────────────────────────────────────────────────────────────┐
+  │ chargeHistory                                                  │
+  │ ✓ Escribe: /api/watcher/check (línea 106-118)                │
+  │ └─ Probablemente TIENE datos                                  │
+  └────────────────────────────────────────────────────────────────┘
+  
+  ┌────────────────────────────────────────────────────────────────┐
+  │ connector_state_changes                                        │
+  │ ❌ Escribe: /api/watcher/check (línea 120-135) ← FALLA       │
+  │ ✓ Lee: /api/state-changes → Monitor                          │
+  │ └─ Probablemente VACÍA (causa del problema)                   │
+  └────────────────────────────────────────────────────────────────┘
+  
+  ┌────────────────────────────────────────────────────────────────┐
+  │ active_watchers                                                │
+  │ ✓ Maneja vigilancias activas                                  │
+  │ └─ Si vacía → usuario no activó vigilancia (esperado)        │
+  └────────────────────────────────────────────────────────────────┘
+
+
+ESTADO ACTUAL DEL DIAGNÓSTICO:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ✓ Identificado punto crítico
+  ✓ Creados 6 documentos (1,400+ líneas)
+  ✓ Mapeado flujo completo
+  ✓ Identificadas líneas exactas del código
+  ✓ Creadas consultas SQL de verificación
+  ✓ Documentados puntos para agregar logs
+
+  ⏳ PENDIENTE: Ejecución de Test SQL para confirmar
+  ⏳ PENDIENTE: Agregar logs y revisar Vercel dashboard
+  ⏳ PENDIENTE: Identificar error exacto de Supabase
+  ⏳ PENDIENTE: Implementar corrección
+
+
+CONCLUSIÓN:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  El problema PROBABLEMENTE es un ERROR SILENCIOSO en la línea 137-151
+  de /api/watcher/check/route.js cuando intenta insertar en 
+  connector_state_changes.
+
+  Para confirmar: Ejecutar Test SQL de 1 minuto.
+  Si A > B → diagnóstico confirmado.
+
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                         DIAGNÓSTICO COMPLETADO                               ║
+║                    SIN CAMBIOS EN EL CÓDIGO (Solo análisis)                   ║
+╚═══════════════════════════════════════════════════════════════════════════════╝

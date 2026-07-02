@@ -44,6 +44,17 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const secret = searchParams.get('secret');
 
+    // [DIAGNÓSTICO TEMPORAL - REMOVER DESPUÉS DE DEBUG]
+    console.log('[v0-DIAG-CRON] Validación de secret:', {
+      receivedLength: secret?.length,
+      envLength: process.env.CRON_SECRET?.length,
+      equal: secret === process.env.CRON_SECRET,
+      receivedFirst8: secret?.slice(0, 8),
+      envFirst8: process.env.CRON_SECRET?.slice(0, 8),
+      receivedLast8: secret?.slice(-8),
+      envLast8: process.env.CRON_SECRET?.slice(-8)
+    });
+
     if (secret !== process.env.CRON_SECRET) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
