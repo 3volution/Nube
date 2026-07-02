@@ -113,14 +113,32 @@ export async function GET(request) {
               isCompleted: true
             });
 
-            // 🔥 ESCRIBIR EN connector_state_changes
-            await supabase.from('connector_state_changes').insert({
-              connector_id: freedConnectorId,
-              old_status: freedPrevStatus,
-              new_status: freedCurrStatus,
-              changed_at: chargeEndTime,
-              timestamp: chargeEndTime
+            // Escribir en connector_state_changes con los campos correctos de la tabla
+            const now = new Date(chargeEndTime);
+            const fecha = now.toISOString().split('T')[0]; // YYYY-MM-DD
+            const hora = now.toTimeString().split(' ')[0]; // HH:MM:SS
+            const diasSemana = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+            const dia = diasSemana[now.getDay()];
+            const durationSeconds = Math.floor(
+              (new Date(chargeEndTime) - new Date(chargeStartTime)) / 1000
+            );
+
+            const { error: stateChangeError } = await supabase.from('connector_state_changes').insert({
+              connector_id: String(freedConnectorId),
+              station_id: String(watcher.station_id),
+              station_name: watcher.station_name,
+              estado_anterior: freedPrevStatus,
+              estado_nuevo: freedCurrStatus,
+              fecha: fecha,
+              dia: dia,
+              hora: hora,
+              timestamp: chargeEndTime,
+              tiempo_en_estado_anterior_segundos: durationSeconds
             });
+
+            if (stateChangeError) {
+              console.error('watcher/check - error insertando state_change:', stateChangeError.message);
+            }
           }
 
           // Comprobar si ya existe una alerta activa (ringing) para este watcher
@@ -154,7 +172,7 @@ export async function GET(request) {
                 station_name: watcher.station_name,
                 station_id: String(watcher.station_id),
                 call_attempt: 1,
-                max_attempts: 5,
+                max_attempts: 2,
                 status: 'ringing',
                 call_sid: callResult.callSid,
                 last_attempt_at: new Date().toISOString(),
