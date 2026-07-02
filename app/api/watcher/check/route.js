@@ -136,28 +136,11 @@ export async function GET(request) {
         }
 
         if (freedConnectorId) {
-          // 🔥 ESCRIBIR EN chargeHistory cuando se detecta FIN DE CARGA
+          // Calcular duración de la carga y escribir en connector_state_changes
           const freedConnector = conectores.find(c => c.id === freedConnectorId);
           if (freedConnector) {
             const chargeEndTime = new Date().toISOString();
             const chargeStartTime = freedConnector.status_changed_at || chargeEndTime;
-            
-            const durationMinutes = Math.floor(
-              (new Date(chargeEndTime) - new Date(chargeStartTime)) / 60000
-            );
-            const isOverLimit = durationMinutes > 120; // > 2 horas = sancionable
-            
-            await supabase.from('chargeHistory').insert({
-              connector_id: freedConnectorId,
-              station_id: String(watcher.station_id),
-              station_name: watcher.station_name,
-              started_at: chargeStartTime,
-              ended_at: chargeEndTime,
-              timestamp: chargeEndTime,
-              durationMinutes: durationMinutes,
-              isOverLimit: isOverLimit,
-              isCompleted: true
-            });
 
             // Escribir en connector_state_changes con los campos correctos de la tabla
             const now = new Date(chargeEndTime);
