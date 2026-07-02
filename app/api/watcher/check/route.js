@@ -17,9 +17,8 @@ function getSupabaseClient() {
  *
  *   GET /api/watcher/check?secret=<CRON_SECRET>
  *
- * También acepta invocaciones de Vercel Cron (header x-vercel-cron: true),
- * aunque /api/watcher/check NO está registrado en vercel.json porque el
- * plan Vercel Hobby solo permite un cron diario.
+ * Autenticación exclusiva mediante ?secret=<CRON_SECRET>.
+ * NO acepta invocaciones de Vercel Cron (el endpoint no está en vercel.json).
  *
  * Razones del scheduler externo:
  * - Compatibilidad con Vercel Hobby (sin límite de frecuencia externa)
@@ -42,14 +41,10 @@ function getSupabaseClient() {
  */
 export async function GET(request) {
   try {
-    const vercelCronHeader = request.headers.get('x-vercel-cron');
     const { searchParams } = new URL(request.url);
     const secret = searchParams.get('secret');
 
-    const isFromVercelCron = vercelCronHeader === 'true';
-    const isAuthorizedCronJob = secret === process.env.CRON_SECRET;
-
-    if (!isFromVercelCron && !isAuthorizedCronJob) {
+    if (secret !== process.env.CRON_SECRET) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

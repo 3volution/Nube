@@ -5,63 +5,76 @@
 El endpoint `/api/watcher/check` necesita ejecutarse cada minuto para detectar
 cuándo un conector vigilado se libera y lanzar una llamada Twilio al operario.
 
-Vercel Hobby solo permite **un cron job diario** en `vercel.json`. Registrar
-`*/1 * * * *` en Vercel Cron viola ese límite y hace que el deployment falle.
+Vercel Hobby solo permite **un cron job diario** en `vercel.json`. Por eso
+`/api/watcher/check` **no está en `vercel.json`** y se invoca desde un
+scheduler HTTP externo que puede ser cualquier servicio o herramienta:
 
-Por eso `/api/watcher/check` se invoca desde un **scheduler externo**:
-
-| Motivo | Detalle |
-|--------|---------|
-| Compatibilidad Vercel Hobby | El cron `*/1` no está en vercel.json |
+| Ventaja | Detalle |
+|---------|---------|
+| Compatible con Vercel Hobby | Sin crons adicionales en vercel.json |
 | Vigilancia sin web abierta | El backend detecta liberaciones aunque el usuario cierre el navegador |
-| Menor complejidad | No requiere polling desde el cliente ni WebSockets |
-| Misma funcionalidad | Comportamiento idéntico al que tendría con Vercel Cron nativo |
+| Sin acoplamiento | El endpoint acepta cualquier cliente HTTP |
+| Sin coste adicional | La mayoría de schedulers externos tienen plan gratuito |
 
 ---
 
-## Configuración del scheduler
+## Paso 1 — Actualizar CRON_SECRET en Vercel
 
-### 1. Variable de entorno
-
-Añade en Vercel (Settings → Environment Variables):
+El `CRON_SECRET` actual debe rotarse. El nuevo valor generado criptográficamente es:
 
 ```
-CRON_SECRET=<mínimo 32 caracteres aleatorios>
+615bb757a3c27785d26a4ac08f58ae65d7adf41bc098ea27d4e58f4d0b71aeee
 ```
 
-Ejemplo de generación:
-```bash
-openssl rand -hex 32
-```
+**Dónde actualizarlo:**
 
-### 2. URL a invocar
+1. Ir a https://vercel.com → proyecto `v0-electric-charger-monitor` → **Settings → Environment Variables**
+2. Localizar la variable `CRON_SECRET`
+3. Editar su valor y sustituirlo por el de arriba
+4. Marcar los entornos: **Production**, Preview, Development
+5. Guardar
 
-```
-GET https://merida.hackerdepueblo.es/api/watcher/check?secret=<CRON_SECRET>
-```
-
-### 3. Frecuencia recomendada
-
-**Cada 1 minuto.** Latencia de alerta máxima: ~60 segundos.
+> Para generar un nuevo secreto en cualquier momento: `openssl rand -hex 32`
 
 ---
 
-## Opciones de scheduler (sin preferencia por ninguna)
+## Paso 2 — URL a invocar
 
-### cron-job.org (gratuito)
+```
+GET https://merida.hackerdepueblo.es/api/watcher/check?secret=615bb757a3c27785d26a4ac08f58ae65d7adf41bc098ea27d4e58f4d0b71aeee
+```
+
+- Método: `GET`
+- Frecuencia: **cada 1 minuto**
+- Timeout recomendado: 30 segundos
+- Respuesta esperada (sin vigilancias activas): `{"success":true,"checked":0,"calls_made":0}`
+
+---
+
+## Paso 3 — Elegir un scheduler (cualquiera de estos es válido)
+
+### Opción A: cron-job.org (gratuito, sin límite de frecuencia)
+
 1. Crear cuenta en https://cron-job.org
-2. Nuevo cron job → URL arriba → cada 1 minuto
-3. Método: GET
-4. Guardar
+2. Dashboard → **Create cronjob**
+3. URL: pegar la URL del Paso 2
+4. Schedule: seleccionar **Every minute**
+5. Request method: **GET**
+6. Guardar y activar
 
-### EasyCron (gratuito con límites)
+### Opción B: EasyCron (gratuito con hasta 20 jobs)
+
 1. Crear cuenta en https://www.easycron.com
-2. Add Cron Job → URL arriba → `* * * * *`
-3. Guardar
+2. **Add Cron Job**
+3. URL: pegar la URL del Paso 2
+4. Cron expression: `* * * * *`
+5. Guardar
 
-### GitHub Actions (requiere repo)
+### Opción C: GitHub Actions (requiere que el repositorio sea público o tener plan GitHub)
+
+Crear el archivo `.github/workflows/watcher-check.yml` en el repositorio:
+
 ```yaml
-# .github/workflows/watcher-check.yml
 name: Watcher Check
 on:
   schedule:
@@ -70,42 +83,46 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - run: |
-          curl -s "${{ secrets.APP_URL }}/api/watcher/check?secret=${{ secrets.CRON_SECRET }}"
+      - name: Invoke watcher endpoint
+        run: |
+          curl -s --max-time 25 \
+            "https://merida.hackerdepueblo.es/api/watcher/check?secret=${{ secrets.CRON_SECRET }}"
 ```
-Añadir `APP_URL` y `CRON_SECRET` como secretos del repositorio.
 
-### Cualquier otro scheduler HTTP
-- Método: `GET`
-- URL: `https://merida.hackerdepueblo.es/api/watcher/check?secret=<CRON_SECRET>`
-- Frecuencia: cada 1 minuto
-- Timeout recomendado: 30 segundos
+Añadir en GitHub → repositorio → **Settings → Secrets → Actions**:
+- `CRON_SECRET` = valor del Paso 1
+
+> Nota: GitHub Actions tiene una precisión de ~1 minuto pero no garantiza ejecución exacta al segundo.
+
+### Opción D: Cualquier otro scheduler HTTP
+
+El endpoint acepta cualquier cliente que envíe:
+
+```
+GET <base_url>/api/watcher/check?secret=<CRON_SECRET>
+```
+
+No hay dependencia de ningún proveedor concreto.
+
+---
+
+## Verificación manual
+
+Después de actualizar `CRON_SECRET` en Vercel y configurar el scheduler, verifica manualmente:
+
+```bash
+# Secreto correcto → debe devolver 200
+curl -s "https://merida.hackerdepueblo.es/api/watcher/check?secret=615bb757a3c27785d26a4ac08f58ae65d7adf41bc098ea27d4e58f4d0b71aeee"
+
+# Secreto incorrecto → debe devolver 401
+curl -s "https://merida.hackerdepueblo.es/api/watcher/check?secret=wrongsecret"
+```
 
 ---
 
 ## Seguridad
 
-- El parámetro `?secret` se valida en el endpoint antes de ejecutar ninguna lógica
-- Si el secret no coincide, el endpoint devuelve `401 Unauthorized`
-- Usa un valor aleatorio de al menos 32 caracteres para evitar fuerza bruta
-- Rota el secret periódicamente si sospechas de uso no autorizado
-
----
-
-## Verificación
-
-Llama manualmente al endpoint para confirmar que funciona:
-
-```bash
-curl -s "https://merida.hackerdepueblo.es/api/watcher/check?secret=TU_SECRET" | jq
-```
-
-Respuesta esperada cuando no hay vigilancias activas:
-```json
-{ "success": true, "checked": 0, "calls_made": 0 }
-```
-
-Respuesta cuando hay vigilancias activas y no hay liberaciones:
-```json
-{ "success": true, "checked": 2, "calls_made": 0 }
-```
+- El `?secret` se valida **antes** de ejecutar ninguna lógica de negocio
+- Un secret incorrecto devuelve `401 Unauthorized` inmediatamente
+- Usar siempre HTTPS (nunca HTTP)
+- Rotar el secret periódicamente actualizando: Vercel env var + scheduler externo
