@@ -86,7 +86,22 @@ export async function GET(request) {
 
     for (const watcher of watchers) {
       try {
+        // [LOG 1] Iniciando vigilancia
+        console.log('[v0-DIAG-WATCHER] Iniciando vigilancia:', {
+          watcher_id: watcher.id,
+          station_id: watcher.station_id,
+          station_name: watcher.station_name,
+          last_connector_states: watcher.last_connector_states
+        });
+
         const conectores = await obtenerDatosEstacion(watcher.station_id, user, pass);
+
+        // [LOG 2] Datos de Electromaps obtenidos
+        console.log('[v0-DIAG-WATCHER] Datos de Electromaps obtenidos:', {
+          station_id: watcher.station_id,
+          conectores_count: conectores?.length,
+          conectores: conectores?.map(c => ({ id: c.id, status: c.status }))
+        });
 
         if (!conectores || conectores.length === 0) continue;
 
@@ -103,6 +118,15 @@ export async function GET(request) {
         for (const connectorId of Object.keys(currentStates)) {
           const prev = previousStates[connectorId];
           const curr = currentStates[connectorId];
+          
+          // [LOG 3] Comparación de estados
+          console.log('[v0-DIAG-WATCHER] Comparación de estados:', {
+            connector_id: connectorId,
+            previousStatus: prev,
+            currentStatus: curr,
+            esDetectableComoLiberation: prev === 'OCCUPIED' && (curr === 'FREE' || curr === 'AVAILABLE')
+          });
+
           if (prev === 'OCCUPIED' && (curr === 'FREE' || curr === 'AVAILABLE')) {
             freedConnectorId = connectorId;
             freedPrevStatus = prev;
@@ -145,6 +169,15 @@ export async function GET(request) {
               (new Date(chargeEndTime) - new Date(chargeStartTime)) / 1000
             );
 
+            // [LOG 4] Antes de INSERT en connector_state_changes
+            console.log('[v0-DIAG-WATCHER] Insertando en connector_state_changes:', {
+              connector_id: freedConnectorId,
+              estado_anterior: freedPrevStatus,
+              estado_nuevo: freedCurrStatus,
+              fecha: fecha,
+              timestamp: chargeEndTime
+            });
+
             const { error: stateChangeError } = await supabase.from('connector_state_changes').insert({
               connector_id: String(freedConnectorId),
               station_id: String(watcher.station_id),
@@ -159,7 +192,10 @@ export async function GET(request) {
             });
 
             if (stateChangeError) {
-              console.error('watcher/check - error insertando state_change:', stateChangeError.message);
+              console.error('[v0-DIAG-WATCHER] ❌ ERROR INSERT connector_state_changes:', stateChangeError.message);
+              console.error('[v0-DIAG-WATCHER]    Detalles:', JSON.stringify(stateChangeError, null, 2));
+            } else {
+              console.log('[v0-DIAG-WATCHER] ✓ INSERT connector_state_changes exitoso');
             }
           }
 
@@ -211,10 +247,24 @@ export async function GET(request) {
 
         } else {
           // Sin liberación detectada: actualizar estados para siguiente iteración
-          await supabase
+          // [LOG 5] Actualizando last_connector_states
+          console.log('[v0-DIAG-WATCHER] Actualizando last_connector_states:', {
+            watcher_id: watcher.id,
+            station_id: watcher.station_id,
+            currentStates: currentStates
+          });
+
+          const { error: updateError } = await supabase
             .from('active_watchers')
             .update({ last_connector_states: currentStates })
             .eq('id', watcher.id);
+
+          if (updateError) {
+            console.error('[v0-DIAG-WATCHER] ❌ ERROR UPDATE last_connector_states:', updateError.message);
+            console.error('[v0-DIAG-WATCHER]    Detalles:', JSON.stringify(updateError, null, 2));
+          } else {
+            console.log('[v0-DIAG-WATCHER] ✓ UPDATE last_connector_states exitoso');
+          }
         }
 
       } catch (stationError) {
