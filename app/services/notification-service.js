@@ -33,7 +33,7 @@ export async function sendCallAlert({ phoneNumber, stationName, attempt = 1 }) {
 
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="alice" language="es-ES">Alerta. Cargador disponible en ${stationName}. Intento ${attempt} de 5. Confirma en la aplicacion.</Say>
+  <Say voice="alice" language="es-ES">Alerta. Cargador disponible en ${stationName}. Intento ${attempt} de 2. Confirma en la aplicacion.</Say>
 </Response>`;
 
     const result = await client.calls.create({
