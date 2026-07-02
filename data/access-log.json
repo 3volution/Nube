@@ -101,6 +101,36 @@
       "status": "success",
       "date": "2/7/2026, 13:06:30",
       "timestamp": "2026-07-02T11:06:30.750Z"
+    },
+    {
+      "password": "TEST_DIAG",
+      "status": "success",
+      "date": "2/7/2026, 15:40:52",
+      "timestamp": "2026-07-02T13:40:52.393Z"
+    },
+    {
+      "password": "SIMULACION",
+      "status": "success",
+      "date": "2/7/2026, 15:41:09",
+      "timestamp": "2026-07-02T13:41:09.600Z"
+    },
+    {
+      "password": "TEST_DEBUG_LOCAL",
+      "status": "success",
+      "date": "2/7/2026, 15:47:58",
+      "timestamp": "2026-07-02T13:47:58.719Z"
+    },
+    {
+      "password": "TEST_VERIFICACION_2",
+      "status": "success",
+      "date": "2/7/2026, 15:48:06",
+      "timestamp": "2026-07-02T13:48:06.675Z"
+    },
+    {
+      "password": "DEBUG_TEST_1",
+      "status": "success",
+      "date": "2/7/2026, 15:50:19",
+      "timestamp": "2026-07-02T13:50:19.265Z"
     }
   ]
 }

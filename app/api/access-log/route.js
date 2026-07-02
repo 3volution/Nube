@@ -1,58 +1,73 @@
 import { NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
+import { createClient } from '@supabase/supabase-js';
 
-const LOG_FILE = path.join(process.cwd(), 'data', 'access-log.json');
+// Helper function para crear cliente Supabase
+function getSupabaseClient() {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-function ensureFile() {
-  const dir = path.dirname(LOG_FILE);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
+  if (!url || !key) {
+    throw new Error('Supabase environment variables not configured');
   }
-  if (!fs.existsSync(LOG_FILE)) {
-    fs.writeFileSync(LOG_FILE, JSON.stringify({ logs: [] }), 'utf8');
-  }
-}
 
-function readLogs() {
-  ensureFile();
-  try {
-    const content = fs.readFileSync(LOG_FILE, 'utf8');
-    return JSON.parse(content);
-  } catch {
-    return { logs: [] };
-  }
-}
-
-function writeLogs(data) {
-  ensureFile();
-  fs.writeFileSync(LOG_FILE, JSON.stringify(data, null, 2), 'utf8');
+  return createClient(url, key);
 }
 
 export async function GET() {
-  const data = readLogs();
-  // Devolver ordenado más reciente primero
-  const logs = [...data.logs].reverse();
-  return NextResponse.json({ logs });
+  try {
+    const supabase = getSupabaseClient();
+
+    // Obtener todos los registros ordenados por timestamp descendente
+    const { data, error } = await supabase
+      .from('access_logs')
+      .select('*')
+      .order('timestamp', { ascending: false });
+
+    if (error) {
+      console.error('Supabase error en GET:', error.message);
+      return NextResponse.json(
+        { logs: [] },
+        { status: 200 } // Devolver vacío en lugar de error
+      );
+    }
+
+    return NextResponse.json({ logs: data || [] });
+  } catch (err) {
+    console.error('Error en GET /api/access-log:', err.message);
+    return NextResponse.json(
+      { logs: [] },
+      { status: 200 } // Devolver vacío en lugar de error
+    );
+  }
 }
 
 export async function POST(request) {
   try {
+    const supabase = getSupabaseClient();
     const body = await request.json();
     const { password, status } = body;
 
-    const data = readLogs();
+    // Insertar registro en Supabase
+    const { data, error } = await supabase
+      .from('access_logs')
+      .insert([
+        {
+          password: password || '',
+          status: status || 'failed',
+          date: new Date().toLocaleString('es-ES', { timeZone: 'Europe/Madrid' }),
+          timestamp: new Date().toISOString()
+        }
+      ])
+      .select();
 
-    data.logs.push({
-      password: password || '',
-      status: status || 'failed',
-      date: new Date().toLocaleString('es-ES', { timeZone: 'Europe/Madrid' }),
-      timestamp: new Date().toISOString()
-    });
+    if (error) {
+      console.error('Supabase error en POST:', error.message);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
 
-    writeLogs(data);
     return NextResponse.json({ ok: true });
   } catch (err) {
+    console.error('Error en POST /api/access-log:', err.message);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
