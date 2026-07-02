@@ -26,8 +26,8 @@ export async function GET() {
     if (error) {
       console.error('Supabase error en GET:', error.message);
       return NextResponse.json(
-        { logs: [] },
-        { status: 200 } // Devolver vacío en lugar de error
+        { error: error.message },
+        { status: 500 }
       );
     }
 
@@ -35,8 +35,8 @@ export async function GET() {
   } catch (err) {
     console.error('Error en GET /api/access-log:', err.message);
     return NextResponse.json(
-      { logs: [] },
-      { status: 200 } // Devolver vacío en lugar de error
+      { error: err.message },
+      { status: 500 }
     );
   }
 }
@@ -48,7 +48,7 @@ export async function POST(request) {
     const { password, status } = body;
 
     // Insertar registro en Supabase
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('access_logs')
       .insert([
         {
@@ -57,8 +57,7 @@ export async function POST(request) {
           date: new Date().toLocaleString('es-ES', { timeZone: 'Europe/Madrid' }),
           timestamp: new Date().toISOString()
         }
-      ])
-      .select();
+      ]);
 
     if (error) {
       console.error('Supabase error en POST:', error.message);
