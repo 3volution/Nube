@@ -101,6 +101,18 @@
       "status": "success",
       "date": "2/7/2026, 13:06:30",
       "timestamp": "2026-07-02T11:06:30.750Z"
+    },
+    {
+      "password": "TEST_DIAG",
+      "status": "success",
+      "date": "2/7/2026, 15:40:52",
+      "timestamp": "2026-07-02T13:40:52.393Z"
+    },
+    {
+      "password": "SIMULACION",
+      "status": "success",
+      "date": "2/7/2026, 15:41:09",
+      "timestamp": "2026-07-02T13:41:09.600Z"
     }
   ]
 }
