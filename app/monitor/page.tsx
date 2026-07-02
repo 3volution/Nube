@@ -88,7 +88,7 @@ export default function MonitorPage() {
     try {
       const [stationsRes, changesRes, logsRes] = await Promise.all([
         fetch('/api/stations'),
-        fetch('/api/state-changes?limit=2000'),
+        fetch('/api/state-changes?limit=10000'),
         fetch('/api/logs?limit=100')
       ]);
 
@@ -190,8 +190,8 @@ export default function MonitorPage() {
       const chargeKeys = new Set<string>();
       
       chargesWithStatus.forEach(charge => {
-        // Crear clave con conector ID, fecha y hora (sin minutos de duración)
-        const chargeDate = new Date(charge.timestamp);
+        // Deduplicar usando startTimestamp (inicio real de la carga)
+        const chargeDate = new Date(charge.startTimestamp);
         const chargeKey = `${charge.connector_id}-${chargeDate.getFullYear()}-${chargeDate.getMonth()}-${chargeDate.getDate()}-${chargeDate.getHours()}`;
         
         // Si aún no hemos visto esta carga, agregarla

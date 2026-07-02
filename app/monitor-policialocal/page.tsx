@@ -36,7 +36,7 @@ export default function PoliciaLocalPage() {
     try {
       const [stationsRes, changesRes] = await Promise.all([
         fetch('/api/stations'),
-        fetch('/api/state-changes?limit=2000')
+        fetch('/api/state-changes?limit=10000')
       ]);
 
       if (stationsRes.ok) {
@@ -121,7 +121,7 @@ export default function PoliciaLocalPage() {
       const chargeKeys = new Set<string>();
       
       chargesWithStatus.forEach(charge => {
-        const chargeDate = new Date(charge.startTimestamp || charge.timestamp);
+        const chargeDate = new Date(charge.startTimestamp);
         const chargeKey = `${charge.connector_id}-${chargeDate.getFullYear()}-${chargeDate.getMonth()}-${chargeDate.getDate()}-${chargeDate.getHours()}`;
         
         if (!chargeKeys.has(chargeKey)) {
