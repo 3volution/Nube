@@ -11,11 +11,27 @@ function getSupabaseClient() {
 
 /**
  * GET /api/watcher/check
- * Invocado cada minuto por cron-job.org (?secret=CRON_SECRET)
- * o por Vercel Cron (header x-vercel-cron).
+ *
+ * Diseñado para ser invocado cada minuto por un scheduler externo
+ * (cron-job.org, EasyCron, GitHub Actions, etc.) mediante:
+ *
+ *   GET /api/watcher/check?secret=<CRON_SECRET>
+ *
+ * También acepta invocaciones de Vercel Cron (header x-vercel-cron: true),
+ * aunque /api/watcher/check NO está registrado en vercel.json porque el
+ * plan Vercel Hobby solo permite un cron diario.
+ *
+ * Razones del scheduler externo:
+ * - Compatibilidad con Vercel Hobby (sin límite de frecuencia externa)
+ * - La vigilancia funciona aunque el usuario cierre la web
+ * - Menor complejidad que polling desde el cliente
+ * - Misma funcionalidad que con Vercel Cron nativo
+ *
+ * Autenticación: query param ?secret=<CRON_SECRET> (env var).
+ * El secret debe tener al menos 32 caracteres aleatorios.
  *
  * Lógica:
- * 1. Sin vigilancias activas → retorna sin consultar Electromaps
+ * 1. Sin vigilancias activas → early exit, sin consultar Electromaps
  * 2. Para cada vigilancia activa → consulta Electromaps
  * 3. Compara estado actual vs last_connector_states
  * 4. Si OCCUPIED → FREE/AVAILABLE y NO existe alerta 'ringing' activa:
