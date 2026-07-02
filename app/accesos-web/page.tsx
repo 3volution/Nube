@@ -3,82 +3,16 @@
 import { useState, useEffect } from 'react';
 
 export default function AccesosWebPage() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [password, setPassword] = useState('');
-  const [passwordError, setPasswordError] = useState(false);
   const [logs, setLogs] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  const loadLogs = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch('/api/access-log');
-      const data = await res.json();
-      setLogs(data.logs || []);
-    } catch (err) {
-      console.error('[v0] Error cargando logs:', err);
-    } finally {
-      setLoading(false);
-      setIsAuthenticated(true);
-    }
-  };
-
-  // Auto-login si viene desde la landing con sessionStorage
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const auth = sessionStorage.getItem('accesos-web-auth');
-      if (auth === 'true') {
-        loadLogs();
-      }
-    }
+    fetch('/api/access-log')
+      .then(res => res.json())
+      .then(data => setLogs(data.logs || []))
+      .catch(err => console.error('[v0] Error cargando logs:', err))
+      .finally(() => setLoading(false));
   }, []);
-
-  const handlePasswordSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const cleanPassword = password.trim();
-    
-    if (cleanPassword === '1967') {
-      setPasswordError(false);
-      setPassword('');
-      await loadLogs();
-    } else {
-      setPasswordError(true);
-      setPassword('');
-    }
-  };
-
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center p-6">
-        <div className="bg-slate-800 rounded-lg p-8 shadow-2xl max-w-md w-full">
-          <h1 className="text-3xl font-bold text-white mb-6 text-center">Acceso Restringido</h1>
-          
-          <form onSubmit={handlePasswordSubmit} className="space-y-4">
-            <div>
-              <label className="block text-slate-300 text-sm font-medium mb-2">Contraseña</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Ingrese contraseña"
-                className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
-              />
-              {passwordError && (
-                <p className="text-red-400 text-sm mt-2">Contraseña incorrecta</p>
-              )}
-            </div>
-            
-            <button
-              type="submit"
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200"
-            >
-              Acceder
-            </button>
-          </form>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 p-6">

@@ -11,9 +11,7 @@ export default function PoliciaLocalPage() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [password, setPassword] = useState('');
-  const [passwordError, setPasswordError] = useState(false);
+
 
   // Orden personalizado de estaciones
   const STATION_ORDER = {
@@ -211,25 +209,6 @@ export default function PoliciaLocalPage() {
     return 'bg-yellow-900 text-yellow-100 border-l-4 border-yellow-500';
   };
 
-  // Contraseñas válidas
-  const VALID_PASSWORDS = ['OSUNA', 'POLICIALOCAL'];
-
-  // Función para validar contraseña
-  const handlePasswordSubmit = (e) => {
-    e.preventDefault();
-    // Validar: trim para espacios, toUpperCase para mayúsculas
-    const cleanPassword = password.trim().toUpperCase();
-    
-    if (VALID_PASSWORDS.includes(cleanPassword)) {
-      setIsAuthenticated(true);
-      setPasswordError(false);
-      setPassword('');
-    } else {
-      setPasswordError(true);
-      setPassword('');
-    }
-  };
-
   // Obtener TODOS los conectores ocupados
   const allOccupiedConnectors = stations
     .flatMap(station => 
@@ -260,40 +239,6 @@ export default function PoliciaLocalPage() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center">
         <div className="text-white text-2xl">Cargando...</div>
-      </div>
-    );
-  }
-
-  // Pantalla de login
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center p-6">
-        <div className="bg-slate-800 rounded-lg p-8 shadow-2xl max-w-md w-full">
-          <h1 className="text-3xl font-bold text-white mb-6 text-center">Acceso Restringido</h1>
-          
-          <form onSubmit={handlePasswordSubmit} className="space-y-4">
-            <div>
-              <label className="block text-slate-300 text-sm font-medium mb-2">Contraseña</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Ingrese contraseña"
-                className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
-              />
-              {passwordError && (
-                <p className="text-red-400 text-sm mt-2">Contraseña incorrecta</p>
-              )}
-            </div>
-            
-            <button
-              type="submit"
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200"
-            >
-              Acceder
-            </button>
-          </form>
-        </div>
       </div>
     );
   }
