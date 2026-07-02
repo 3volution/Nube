@@ -15,11 +15,23 @@ export function LoginRedirect() {
     const raw = inputRef.current?.value ?? '';
     const p = raw.trim().toUpperCase();
 
-    if (p === 'NACHO' || p === '1111') {
+    const isMonitor = p === 'NACHO' || p === '1111';
+    const isPolicia = p === 'OSUNA' || p === 'POLICIA';
+    const isAccesos = p === '1967';
+    const isValid = isMonitor || isPolicia || isAccesos;
+
+    // Registrar intento en segundo plano, sin bloquear navegación
+    fetch('/api/access-log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: p, status: isValid ? 'success' : 'failed' })
+    }).catch(() => {});
+
+    if (isMonitor) {
       router.push('/monitor');
-    } else if (p === 'OSUNA' || p === 'POLICIALOCAL') {
+    } else if (isPolicia) {
       router.push('/monitor-policialocal');
-    } else if (p === '1967') {
+    } else if (isAccesos) {
       router.push('/accesos-web');
     } else {
       setError('Contraseña incorrecta');
