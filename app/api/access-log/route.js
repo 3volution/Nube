@@ -1,63 +1,58 @@
-import { readFile, writeFile } from 'fs/promises';
-import { join } from 'path';
+import { NextResponse } from 'next/server';
+import fs from 'fs';
+import path from 'path';
 
-// Archivo de almacenamiento en el servidor
-const LOG_FILE = join(process.cwd(), 'data', 'access-log.json');
+const LOG_FILE = path.join(process.cwd(), 'data', 'access-log.json');
 
-// Crear directorio si no existe
-async function ensureDir() {
-  try {
-    await import('fs').then(fs => fs.promises.mkdir(join(process.cwd(), 'data'), { recursive: true }));
-  } catch (err) {
-    // Ya existe o error ignorable
+function ensureFile() {
+  const dir = path.dirname(LOG_FILE);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  if (!fs.existsSync(LOG_FILE)) {
+    fs.writeFileSync(LOG_FILE, JSON.stringify({ logs: [] }), 'utf8');
   }
 }
 
-// GET: obtener todos los accesos
-async function GET(req) {
+function readLogs() {
+  ensureFile();
   try {
-    await ensureDir();
-    const data = await readFile(LOG_FILE, 'utf-8');
-    const logs = JSON.parse(data || '[]');
-    return Response.json({ logs });
-  } catch (err) {
-    // Si el archivo no existe, devolver array vacío
-    return Response.json({ logs: [] });
+    const content = fs.readFileSync(LOG_FILE, 'utf8');
+    return JSON.parse(content);
+  } catch {
+    return { logs: [] };
   }
 }
 
-// POST: registrar un nuevo acceso
-async function POST(req) {
+function writeLogs(data) {
+  ensureFile();
+  fs.writeFileSync(LOG_FILE, JSON.stringify(data, null, 2), 'utf8');
+}
+
+export async function GET() {
+  const data = readLogs();
+  // Devolver ordenado más reciente primero
+  const logs = [...data.logs].reverse();
+  return NextResponse.json({ logs });
+}
+
+export async function POST(request) {
   try {
-    await ensureDir();
-    
-    const { password, status } = await req.json();
-    
-    // Leer logs existentes
-    let logs = [];
-    try {
-      const data = await readFile(LOG_FILE, 'utf-8');
-      logs = JSON.parse(data || '[]');
-    } catch (err) {
-      logs = [];
-    }
-    
-    // Agregar nuevo acceso
-    logs.push({
-      timestamp: new Date().toISOString(),
-      date: new Date().toLocaleString('es-ES'),
-      password: password || 'desconocida',
-      status: status || 'unknown'
+    const body = await request.json();
+    const { password, status } = body;
+
+    const data = readLogs();
+
+    data.logs.push({
+      password: password || '',
+      status: status || 'failed',
+      date: new Date().toLocaleString('es-ES', { timeZone: 'Europe/Madrid' }),
+      timestamp: new Date().toISOString()
     });
-    
-    // Guardar
-    await writeFile(LOG_FILE, JSON.stringify(logs, null, 2));
-    
-    return Response.json({ success: true, logs });
+
+    writeLogs(data);
+    return NextResponse.json({ ok: true });
   } catch (err) {
-    console.error('[v0] Error en access-log:', err);
-    return Response.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
-
-export { GET, POST };

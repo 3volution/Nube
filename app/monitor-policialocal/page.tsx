@@ -11,9 +11,7 @@ export default function PoliciaLocalPage() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [password, setPassword] = useState('');
-  const [passwordError, setPasswordError] = useState(false);
+
 
   // Orden personalizado de estaciones
   const STATION_ORDER = {
@@ -38,7 +36,7 @@ export default function PoliciaLocalPage() {
     try {
       const [stationsRes, changesRes] = await Promise.all([
         fetch('/api/stations'),
-        fetch('/api/state-changes?limit=2000')
+        fetch('/api/state-changes?limit=10000')
       ]);
 
       if (stationsRes.ok) {
@@ -118,12 +116,12 @@ export default function PoliciaLocalPage() {
         }
       });
       
-      // Deduplicar cargas
+      // Deduplicar usando startTimestamp como referencia real de inicio de carga
       const uniqueCharges = [];
       const chargeKeys = new Set<string>();
       
       chargesWithStatus.forEach(charge => {
-        const chargeDate = new Date(charge.timestamp);
+        const chargeDate = new Date(charge.startTimestamp);
         const chargeKey = `${charge.connector_id}-${chargeDate.getFullYear()}-${chargeDate.getMonth()}-${chargeDate.getDate()}-${chargeDate.getHours()}`;
         
         if (!chargeKeys.has(chargeKey)) {
@@ -132,11 +130,13 @@ export default function PoliciaLocalPage() {
         }
       });
       
-      // Ordenar y limitar
+      // Ordenar por startTimestamp descendente (más reciente primero), filtrar últimos 30 días
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       const sortedCharges = uniqueCharges
-        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-        .slice(0, 200);
-      
+        .sort((a, b) => new Date(b.startTimestamp || b.timestamp).getTime() - new Date(a.startTimestamp || a.timestamp).getTime())
+        .filter(c => new Date(c.startTimestamp || c.timestamp).getTime() >= thirtyDaysAgo.getTime());
+
       setChargeHistory(sortedCharges);
     }
   }, [stateChanges]);
@@ -201,38 +201,14 @@ export default function PoliciaLocalPage() {
     }
   };
 
-  // Contraseñas válidas
-  const VALID_PASSWORDS = ['NACHO', '1111', 'OSUNA', 'POLICIALOCAL'];
-
-  // Función para validar contraseña
-  const handlePasswordSubmit = async (e) => {
-    e.preventDefault();
-    // Validar: trim para espacios, toUpperCase para mayúsculas
-    const cleanPassword = password.trim().toUpperCase();
-    const isValid = VALID_PASSWORDS.includes(cleanPassword);
-    
-    // Registrar intento en el servidor
-    try {
-      await fetch('/api/access-log', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          password: cleanPassword,
-          status: isValid ? 'success' : 'failed'
-        })
-      });
-    } catch (err) {
-      console.error('[v0] Error registrando acceso:', err);
+  const getStatusColor = (status) => {
+    if (status === 'FREE' || status === 'AVAILABLE') {
+      return 'bg-green-900 text-green-100 border-l-4 border-green-500';
     }
-    
-    if (isValid) {
-      setIsAuthenticated(true);
-      setPasswordError(false);
-      setPassword('');
-    } else {
-      setPasswordError(true);
-      setPassword('');
+    if (status === 'OCCUPIED') {
+      return 'bg-red-900 text-red-100 border-l-4 border-red-500';
     }
+    return 'bg-yellow-900 text-yellow-100 border-l-4 border-yellow-500';
   };
 
   // Obtener TODOS los conectores ocupados
@@ -269,40 +245,6 @@ export default function PoliciaLocalPage() {
     );
   }
 
-  // Pantalla de login
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center p-6">
-        <div className="bg-slate-800 rounded-lg p-8 shadow-2xl max-w-md w-full">
-          <h1 className="text-3xl font-bold text-white mb-6 text-center">Acceso Restringido</h1>
-          
-          <form onSubmit={handlePasswordSubmit} className="space-y-4">
-            <div>
-              <label className="block text-slate-300 text-sm font-medium mb-2">Contraseña</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Ingrese contraseña"
-                className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
-              />
-              {passwordError && (
-                <p className="text-red-400 text-sm mt-2">Contraseña incorrecta</p>
-              )}
-            </div>
-            
-            <button
-              type="submit"
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200"
-            >
-              Acceder
-            </button>
-          </form>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 p-6">
         <div className="max-w-6xl mx-auto">
@@ -334,78 +276,121 @@ export default function PoliciaLocalPage() {
             </div>
           )}
 
-          {/* Conectores Ocupados (sancionables parpadean) */}
-          <div className="grid gap-4 mb-8">
-            {allOccupiedConnectors.length > 0 ? (
-              allOccupiedConnectors.map((connector, index) => {
-                const durationMinutes = Math.floor((Date.now() - new Date(connector.status_changed_at).getTime()) / 60000);
-                const excessMinutes = durationMinutes - 120;
-                const isSanctionable = sanctionableIds.has(connector.id);
-                const bgClass = isSanctionable 
-                  ? 'bg-red-900 border-l-4 border-red-500 animate-pulse' 
-                  : 'bg-yellow-900/60 border-l-4 border-yellow-600';
-
-                return (
-                  <div
-                    key={`${connector.id}-${index}`}
-                    className={`${bgClass} p-4 rounded`}
-                  >
-                    <div className="grid grid-cols-1 md:grid-cols-5 gap-4 text-white">
-                      <div>
-                        <span className="text-sm opacity-75">Estación</span>
-                        <div className="text-lg font-bold">{connector.stationName}</div>
+          {/* Conectores Ocupados - Formato exacto de monitor */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {stations
+              .filter(station => allOccupiedConnectors.some(c => c.stationName === station.name))
+              .sort((stationA, stationB) => {
+                // Obtener el tiempo máximo de ocupación de cada estación
+                const stationAConnectors = allOccupiedConnectors.filter(c => c.stationName === stationA.name);
+                const stationBConnectors = allOccupiedConnectors.filter(c => c.stationName === stationB.name);
+                
+                const maxTimeA = Math.max(...stationAConnectors.map(c => 
+                  Date.now() - new Date(c.status_changed_at).getTime()
+                ));
+                const maxTimeB = Math.max(...stationBConnectors.map(c => 
+                  Date.now() - new Date(c.status_changed_at).getTime()
+                ));
+                
+                // Ordenar descendente (mayor tiempo primero)
+                return maxTimeB - maxTimeA;
+              })
+              .map(station => (
+                <div
+                  key={station.id}
+                  className="rounded-lg p-4 border transition bg-slate-700 border-slate-600 hover:border-slate-500"
+                >
+                  <div className="flex justify-between items-start mb-4">
+                    <div>
+                      <h3 className="text-white font-bold text-2xl">{station.name}</h3>
+                    </div>
+                    <div className="flex flex-col gap-2 items-end">
+                      <div className="flex items-center gap-1 text-red-500 font-bold text-sm">
+                        <span>⚠️</span>
+                        <span>{allOccupiedConnectors.filter(c => c.stationName === station.name && sanctionableIds.has(c.id)).length}</span>
                       </div>
-                      <div>
-                        <span className="text-sm opacity-75">ID Conector</span>
-                        <div className="text-lg font-bold">{connector.visualRef || connector.id}</div>
-                      </div>
-                      <div>
-                        <span className="text-sm opacity-75">Tiempo Total</span>
-                        <div className="text-lg font-bold">{formatTime(connector.status_changed_at)}</div>
-                      </div>
-                      <div>
-                        <span className="text-sm opacity-75">Estado</span>
-                        <div className="text-lg font-bold">{isSanctionable ? '⚠�� SANCIONABLE' : '🔌 OCUPADO'}</div>
-                      </div>
-                      {isSanctionable && (
-                        <div>
-                          <span className="text-sm opacity-75">Exceso</span>
-                          <div className="text-lg font-bold text-yellow-300">+{excessMinutes} min</div>
-                        </div>
-                      )}
                     </div>
                   </div>
-                );
-              })
-            ) : (
-              <div className="bg-green-900 border-l-4 border-green-500 text-green-100 p-6 rounded text-center text-lg font-bold">
-                ✅ No hay conectores ocupados en este momento
-              </div>
-            )}
+
+                  <div className="grid grid-cols-1 gap-3 max-h-96 overflow-y-auto pr-2">
+                    {station.connectors
+                      .filter(connector => allOccupiedConnectors.some(c => c.id === connector.id))
+                      .map((connector, idx) => {
+                        const isSanctionable = sanctionableIds.has(connector.id);
+                        
+                        return (
+                          <div key={idx} className="space-y-2">
+                            <div
+                              className={`p-3 rounded-lg border-2 flex flex-col justify-center h-20 ${getStatusColor(connector.status)} ${
+                                isSanctionable 
+                                  ? 'animate-pulse border-red-500 shadow-lg shadow-red-500' 
+                                  : ''
+                              }`}
+                              style={
+                                isSanctionable
+                                  ? {
+                                      animation: 'pulse 0.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                                      boxShadow: '0 0 20px rgba(239, 68, 68, 0.8)'
+                                    }
+                                  : {}
+                              }
+                            >
+                              <div className="text-xs opacity-75 mb-1">
+                                ID: {connector.visualRef || connector.id}
+                              </div>
+                              <div className="flex flex-col gap-1">
+                                <div className="flex items-baseline gap-3">
+                                  <span className="text-xl sm:text-2xl font-bold">
+                                    {connector.status === 'FREE' || connector.status === 'AVAILABLE' ? 'LIBRE' :
+                                     connector.status === 'OCCUPIED' ? 'OCUPADO' :
+                                     'FUERA DE SERVICIO'}
+                                  </span>
+                                  <span className="text-sm sm:text-lg font-semibold">{formatTime(connector.status_changed_at)}</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+              ))}
           </div>
+
+          {/* Mensaje si no hay conectores ocupados */}
+          {allOccupiedConnectors.length === 0 && (
+            <div className="bg-green-900 border-l-4 border-green-500 text-green-100 p-6 rounded text-center text-lg font-bold">
+              ✅ No hay conectores ocupados en este momento
+            </div>
+          )}
 
           {/* Histórico de Cargas Sancionables */}
           <div className="mt-8">
             <h2 className="text-2xl font-bold text-white mb-4">Histórico de Cargas Sancionables</h2>
             <div className="bg-slate-800 rounded-lg overflow-hidden">
               {chargeHistory.filter(c => c.isOverLimit).length > 0 ? (
-                <div className="max-h-96 overflow-y-auto">
+                <div className="max-h-[80vh] overflow-y-auto">
                   {chargeHistory.filter(c => c.isOverLimit).map((charge, idx) => {
-                    const timestamp = new Date(charge.timestamp);
+                    const filteredCharges = chargeHistory.filter(c => c.isOverLimit);
+                    // Usar startTimestamp como fecha de referencia real (inicio de carga)
+                    const timestamp = new Date(charge.startTimestamp || charge.timestamp);
                     const timeStr = timestamp.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
                     const dateStr = timestamp.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
                     
-                    // Detectar si es el primer elemento o cambio de fecha
+                    // Detectar cambio de día usando startTimestamp
                     let showDaySeparator = idx === 0;
                     if (idx > 0) {
-                      const filteredCharges = chargeHistory.filter(c => c.isOverLimit);
-                      const prevTimestamp = new Date(filteredCharges[idx - 1].timestamp);
-                      const currentDate = new Date(timestamp).toLocaleDateString('es-ES');
-                      const prevDate = new Date(prevTimestamp).toLocaleDateString('es-ES');
-                      showDaySeparator = currentDate !== prevDate;
+                      const prevTimestamp = new Date(filteredCharges[idx - 1].startTimestamp || filteredCharges[idx - 1].timestamp);
+                      showDaySeparator = timestamp.toLocaleDateString('es-ES') !== prevTimestamp.toLocaleDateString('es-ES');
                     }
+
+                    // Estadísticas reales del día usando startTimestamp
+                    const dayStr = timestamp.toLocaleDateString('es-ES');
+                    const dayOverLimit = filteredCharges.filter(c =>
+                      new Date(c.startTimestamp || c.timestamp).toLocaleDateString('es-ES') === dayStr
+                    ).length;
                     
-                    // Formato duracion: solo minutos o horas:minutos
+                    // Formato duracion
                     const mins = charge.durationMinutes || 0;
                     const durationStr = mins >= 60 
                       ? `${Math.floor(mins / 60)}h ${mins % 60}m` 
@@ -413,11 +398,14 @@ export default function PoliciaLocalPage() {
                     
                     return (
                       <div key={idx}>
-                        {/* Separador de día a las 23:59 */}
-                        {showDaySeparator && idx > 0 && (
+                        {/* Separador de día con estadísticas reales */}
+                        {showDaySeparator && (
                           <div className="bg-slate-200 px-3 py-3 border-b-2 border-slate-400">
-                            <div className="font-bold text-slate-900 text-sm">
-                              DÍA ANTERIOR - 23:59 HORAS
+                            <div className="font-bold text-slate-900 text-sm mb-1">
+                              {timestamp.toLocaleDateString('es-ES', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' }).toUpperCase()}
+                            </div>
+                            <div className="text-sm text-slate-800">
+                              Sancionables: <span className="text-red-600 font-bold">{dayOverLimit}</span>
                             </div>
                           </div>
                         )}
