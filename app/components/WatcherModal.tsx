@@ -23,23 +23,11 @@ interface WatcherModalProps {
 }
 
 export function WatcherModal({ station, isOpen, onClose, onStart, onCancel, isWatching }: WatcherModalProps) {
-  const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [twilioPhone, setTwilioPhone] = useState(process.env.NEXT_PUBLIC_TWILIO_CALL_RECIPIENT || '');
   const [twilioLoading, setTwilioLoading] = useState(false);
   const [twilioResult, setTwilioResult] = useState<{ status: 'success' | 'error'; message: string } | null>(null);
-
-  const handleAuthenticate = () => {
-    if (pin.toUpperCase() !== 'NACHO') {
-      setError('Código incorrecto');
-      setPin('');
-      return;
-    }
-    setError(null);
-    setIsAuthenticated(true);
-  };
 
   const handleTestTwilio = async () => {
     if (!twilioPhone.trim()) {
@@ -157,8 +145,6 @@ export function WatcherModal({ station, isOpen, onClose, onStart, onCancel, isWa
   };
 
   const handleClose = () => {
-    setPin('');
-    setIsAuthenticated(false);
     setError(null);
     setLoading(false);
     onClose();
@@ -174,61 +160,7 @@ export function WatcherModal({ station, isOpen, onClose, onStart, onCancel, isWa
         </h2>
         <p className="text-slate-400 text-sm mb-6">{station.name}</p>
 
-        {!isAuthenticated ? (
-          <>
-            <p className="text-slate-300 text-sm mb-6">
-              Ingresa el código de activación para continuar.
-            </p>
-
-            <div className="mb-4">
-              <label className="block text-slate-300 text-sm font-semibold mb-2">
-                Código de activación
-              </label>
-              <div className="flex gap-2 justify-center mb-3">
-                {[0, 1, 2, 3, 4].map((index) => (
-                  <div
-                    key={index}
-                    className="w-10 h-10 bg-slate-700 border border-slate-600 rounded flex items-center justify-center"
-                  >
-                    {pin.length > index && (
-                      <span className="text-white text-xl">●</span>
-                    )}
-                  </div>
-                ))}
-              </div>
-              <input
-                type="text"
-                value={pin}
-                onChange={(e) => setPin(e.target.value.slice(0, 5))}
-                maxLength={5}
-                className="w-full px-3 py-2 bg-slate-700 text-white rounded border border-slate-600 focus:border-blue-500 outline-none text-center tracking-wider"
-                autoFocus
-              />
-            </div>
-
-            {error && (
-              <div className="mb-4 p-3 bg-red-900/50 border border-red-700 text-red-200 rounded text-sm">
-                {error}
-              </div>
-            )}
-
-            <div className="flex gap-2">
-              <button
-                onClick={handleClose}
-                className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded transition"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleAuthenticate}
-                disabled={pin.length !== 5}
-                className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded transition disabled:opacity-50 font-semibold"
-              >
-                Continuar
-              </button>
-            </div>
-          </>
-        ) : isWatching ? (
+        {isWatching ? (
           <>
             <div className="mb-6 p-4 bg-yellow-900/30 border border-yellow-600 rounded">
               <p className="text-yellow-200 text-sm">
