@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { APP_VERSION } from '@/app/config/version';
 
 export default function PoliciaLocalPage() {
+  const [intervals, setIntervals] = useState<NodeJS.Timeout[]>([]);
   const [stations, setStations] = useState([]);
   const [stateChanges, setStateChanges] = useState([]);
   const [chargeHistory, setChargeHistory] = useState([]);
@@ -144,6 +145,7 @@ export default function PoliciaLocalPage() {
   useEffect(() => {
     fetchData();
     const interval = setInterval(fetchData, 30000);
+    setIntervals(prev => [...prev, interval]);
     return () => clearInterval(interval);
   }, []);
 
@@ -168,6 +170,7 @@ export default function PoliciaLocalPage() {
       setSanctionableCharges(sanctionable);
       setStations(prev => [...prev]);
     }, 1000);
+    setIntervals(prev => [...prev, timer]);
     return () => clearInterval(timer);
   }, [stations]);
 
@@ -176,6 +179,7 @@ export default function PoliciaLocalPage() {
     const clockInterval = setInterval(() => {
       setCurrentTime(new Date());
     }, 1000);
+    setIntervals(prev => [...prev, clockInterval]);
     return () => clearInterval(clockInterval);
   }, []);
 
@@ -184,8 +188,21 @@ export default function PoliciaLocalPage() {
     const reloadInterval = setInterval(() => {
       window.location.reload();
     }, 60000);
+    setIntervals(prev => [...prev, reloadInterval]);
     return () => clearInterval(reloadInterval);
   }, []);
+
+  // Temporizador de 2 minutos: cierra sesión después de 120 segundos
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      // Limpiar todos los intervalos
+      intervals.forEach(interval => clearInterval(interval));
+      // Redirigir al login
+      window.location.href = '/';
+    }, 120000); // 120 segundos = 2 minutos
+
+    return () => clearTimeout(timeout);
+  }, [intervals]);
 
   // Función para calcular tiempo transcurrido
   const formatTime = (isoString) => {

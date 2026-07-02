@@ -6,6 +6,7 @@ import { WatcherModal } from '@/app/components/WatcherModal';
 import { CallEventModal } from '@/app/components/CallEventModal';
 
 export default function MonitorPage() {
+  const [intervals, setIntervals] = useState<NodeJS.Timeout[]>([]);
   const [stations, setStations] = useState([]);
   const [stateChanges, setStateChanges] = useState([]);
   const [logs, setLogs] = useState([]);
@@ -280,6 +281,7 @@ export default function MonitorPage() {
   useEffect(() => {
     fetchData();
     const interval = setInterval(fetchData, 30000);
+    setIntervals(prev => [...prev, interval]);
     return () => clearInterval(interval);
   }, []);
 
@@ -306,6 +308,7 @@ export default function MonitorPage() {
     loadActiveWatchers();
     // Recargar vigilancias activas cada 30 segundos
     const interval = setInterval(loadActiveWatchers, 30000);
+    setIntervals(prev => [...prev, interval]);
     return () => clearInterval(interval);
   }, []);
 
@@ -342,6 +345,7 @@ export default function MonitorPage() {
       
       setStations(prev => [...prev]); // Forzar re-render sin cambiar data
     }, 1000);
+    setIntervals(prev => [...prev, timer]);
     return () => clearInterval(timer);
   }, [stations]);
 
@@ -350,6 +354,7 @@ export default function MonitorPage() {
     const clockInterval = setInterval(() => {
       setCurrentTime(new Date());
     }, 1000);
+    setIntervals(prev => [...prev, clockInterval]);
     return () => clearInterval(clockInterval);
   }, []);
 
@@ -358,8 +363,21 @@ export default function MonitorPage() {
     const reloadInterval = setInterval(() => {
       window.location.reload();
     }, 60000);
+    setIntervals(prev => [...prev, reloadInterval]);
     return () => clearInterval(reloadInterval);
   }, []);
+
+  // Temporizador de 2 minutos: cierra sesión después de 120 segundos
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      // Limpiar todos los intervalos
+      intervals.forEach(interval => clearInterval(interval));
+      // Redirigir al login
+      window.location.href = '/';
+    }, 120000); // 120 segundos = 2 minutos
+
+    return () => clearTimeout(timeout);
+  }, [intervals]);
 
   // Función para calcular tiempo transcurrido (igual que en Scriptable)
   const formatTime = (isoString) => {
