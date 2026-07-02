@@ -184,6 +184,27 @@ export default function MonitorPage() {
           }
         }
       });
+
+      // Agregar eventos SUELTOS (liberaciones sin inicio registrado)
+      Object.values(changesByConnector).forEach(connectorChanges => {
+        connectorChanges.forEach(change => {
+          // Si es FREE o AVAILABLE y no ha sido procesado (evento suelto)
+          if ((change.new_status === 'FREE' || change.new_status === 'AVAILABLE')) {
+            const eventKey = `${change.connector_id}-${change.timestamp}-${change.new_status}`;
+            if (!processedEventIndices.has(eventKey)) {
+              // Es un evento suelto (liberación sin inicio registrado)
+              chargesWithStatus.push({
+                ...change,
+                startTimestamp: change.timestamp,
+                isCompleted: false, // Marca como incompleta
+                durationMinutes: -1, // Indica "sin datos"
+                isOverLimit: false
+              });
+              processedEventIndices.add(eventKey);
+            }
+          }
+        });
+      });
       
       // Deduplicar cargas que tengan el mismo conector, fecha y hora pero distinta duración
       // (mantener solo la primera de cada grupo)
@@ -714,9 +735,11 @@ export default function MonitorPage() {
                         
                         // Formato duracion: solo minutos o horas:minutos
                         const mins = charge.durationMinutes || 0;
-                        const durationStr = mins >= 60 
-                          ? `${Math.floor(mins / 60)}h ${mins % 60}m` 
-                          : `${mins}m`;
+                        const durationStr = mins === -1
+                          ? 'Inicio no registrado'
+                          : (mins >= 60 
+                              ? `${Math.floor(mins / 60)}h ${mins % 60}m` 
+                              : `${mins}m`);
                         
                         // Color de fondo segun estado
                         let bgColor = 'bg-slate-700';
