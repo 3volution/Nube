@@ -208,6 +208,11 @@ export default function MonitorPage() {
         .sort((a, b) => new Date(b.startTimestamp || b.timestamp).getTime() - new Date(a.startTimestamp || a.timestamp).getTime())
         .filter(c => new Date(c.startTimestamp || c.timestamp).getTime() >= thirtyDaysAgo.getTime());
 
+      console.log('[v0] Total cargas procesadas:', sortedCharges.length);
+      if (sortedCharges.length > 0) {
+        console.log('[v0] Primera carga (más reciente):', sortedCharges[0].startTimestamp, sortedCharges[0].timestamp);
+        console.log('[v0] Última carga (más antigua):', sortedCharges[sortedCharges.length - 1].startTimestamp, sortedCharges[sortedCharges.length - 1].timestamp);
+      }
       setChargeHistory(sortedCharges);
       
       // Calcular cargas del dia actual (desde las 00:00)
