@@ -116,12 +116,12 @@ export default function PoliciaLocalPage() {
         }
       });
       
-      // Deduplicar cargas
+      // Deduplicar usando startTimestamp como referencia real de inicio de carga
       const uniqueCharges = [];
       const chargeKeys = new Set<string>();
       
       chargesWithStatus.forEach(charge => {
-        const chargeDate = new Date(charge.timestamp);
+        const chargeDate = new Date(charge.startTimestamp || charge.timestamp);
         const chargeKey = `${charge.connector_id}-${chargeDate.getFullYear()}-${chargeDate.getMonth()}-${chargeDate.getDate()}-${chargeDate.getHours()}`;
         
         if (!chargeKeys.has(chargeKey)) {
@@ -130,12 +130,12 @@ export default function PoliciaLocalPage() {
         }
       });
       
-      // Ordenar por fecha descendente (más reciente primero), filtrar últimos 30 días
+      // Ordenar por startTimestamp descendente (más reciente primero), filtrar últimos 30 días
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       const sortedCharges = uniqueCharges
-        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-        .filter(c => new Date(c.timestamp).getTime() >= thirtyDaysAgo.getTime());
+        .sort((a, b) => new Date(b.startTimestamp || b.timestamp).getTime() - new Date(a.startTimestamp || a.timestamp).getTime())
+        .filter(c => new Date(c.startTimestamp || c.timestamp).getTime() >= thirtyDaysAgo.getTime());
 
       setChargeHistory(sortedCharges);
     }
@@ -372,20 +372,22 @@ export default function PoliciaLocalPage() {
                 <div className="max-h-[80vh] overflow-y-auto">
                   {chargeHistory.filter(c => c.isOverLimit).map((charge, idx) => {
                     const filteredCharges = chargeHistory.filter(c => c.isOverLimit);
-                    const timestamp = new Date(charge.timestamp);
+                    // Usar startTimestamp como fecha de referencia real (inicio de carga)
+                    const timestamp = new Date(charge.startTimestamp || charge.timestamp);
                     const timeStr = timestamp.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
                     const dateStr = timestamp.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
                     
-                    // Detectar cambio de día (más reciente primero)
+                    // Detectar cambio de día usando startTimestamp
                     let showDaySeparator = idx === 0;
                     if (idx > 0) {
-                      const prevTimestamp = new Date(filteredCharges[idx - 1].timestamp);
+                      const prevTimestamp = new Date(filteredCharges[idx - 1].startTimestamp || filteredCharges[idx - 1].timestamp);
                       showDaySeparator = timestamp.toLocaleDateString('es-ES') !== prevTimestamp.toLocaleDateString('es-ES');
                     }
 
-                    // Estadísticas reales del día
+                    // Estadísticas reales del día usando startTimestamp
+                    const dayStr = timestamp.toLocaleDateString('es-ES');
                     const dayOverLimit = filteredCharges.filter(c =>
-                      new Date(c.timestamp).toLocaleDateString('es-ES') === timestamp.toLocaleDateString('es-ES')
+                      new Date(c.startTimestamp || c.timestamp).toLocaleDateString('es-ES') === dayStr
                     ).length;
                     
                     // Formato duracion

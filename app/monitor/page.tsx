@@ -201,13 +201,13 @@ export default function MonitorPage() {
         }
       });
       
-      // Ordenar por fecha descendente (más reciente primero), filtrar últimos 30 días
+      // Ordenar por startTimestamp descendente (más reciente primero), filtrar últimos 30 días
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       const sortedCharges = uniqueCharges
-        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-        .filter(c => new Date(c.timestamp).getTime() >= thirtyDaysAgo.getTime());
-      
+        .sort((a, b) => new Date(b.startTimestamp || b.timestamp).getTime() - new Date(a.startTimestamp || a.timestamp).getTime())
+        .filter(c => new Date(c.startTimestamp || c.timestamp).getTime() >= thirtyDaysAgo.getTime());
+
       setChargeHistory(sortedCharges);
       
       // Calcular cargas del dia actual (desde las 00:00)
@@ -670,22 +670,22 @@ export default function MonitorPage() {
                   {chargeHistory.length > 0 ? (
                     <div>
                       {chargeHistory.map((charge, idx) => {
-                        const timestamp = new Date(charge.timestamp);
+                        // Usar startTimestamp como fecha de referencia (inicio de carga)
+                        const timestamp = new Date(charge.startTimestamp || charge.timestamp);
                         const timeStr = timestamp.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
                         const dateStr = timestamp.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
                         
-                        // Detectar cambio de día (más reciente primero, separador cuando cambia el día)
+                        // Detectar cambio de día usando startTimestamp
                         let showDaySeparator = idx === 0;
                         if (idx > 0) {
-                          const prevTimestamp = new Date(chargeHistory[idx - 1].timestamp);
-                          const currentDate = timestamp.toLocaleDateString('es-ES');
-                          const prevDate = prevTimestamp.toLocaleDateString('es-ES');
-                          showDaySeparator = currentDate !== prevDate;
+                          const prevTimestamp = new Date(chargeHistory[idx - 1].startTimestamp || chargeHistory[idx - 1].timestamp);
+                          showDaySeparator = timestamp.toLocaleDateString('es-ES') !== prevTimestamp.toLocaleDateString('es-ES');
                         }
 
-                        // Calcular estadísticas reales del día actual del separador
-                        const dayCharges = chargeHistory.filter(c => 
-                          new Date(c.timestamp).toLocaleDateString('es-ES') === timestamp.toLocaleDateString('es-ES')
+                        // Estadísticas reales del día usando startTimestamp
+                        const dayStr = timestamp.toLocaleDateString('es-ES');
+                        const dayCharges = chargeHistory.filter(c =>
+                          new Date(c.startTimestamp || c.timestamp).toLocaleDateString('es-ES') === dayStr
                         );
                         const dayCompleted = dayCharges.filter(c => c.isCompleted).length;
                         const dayOverLimit = dayCharges.filter(c => c.isOverLimit).length;
