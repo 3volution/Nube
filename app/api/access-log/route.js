@@ -41,6 +41,12 @@ export async function POST(request) {
     const body = await request.json();
     const { password, status } = body;
 
+    console.log('[v0-DEBUG] POST /api/access-log iniciado');
+    console.log('[v0-DEBUG] Fecha:', new Date().toISOString());
+    console.log('[v0-DEBUG] Password recibido:', password);
+    console.log('[v0-DEBUG] Status recibido:', status);
+    console.log('[v0-DEBUG] Ruta del archivo:', LOG_FILE);
+
     const data = readLogs();
 
     data.logs.push({
@@ -50,9 +56,12 @@ export async function POST(request) {
       timestamp: new Date().toISOString()
     });
 
+    console.log('[v0-DEBUG] Intentando escribir en:', LOG_FILE);
     writeLogs(data);
+    console.log('[v0-DEBUG] Escritura exitosa. Total registros:', data.logs.length);
     return NextResponse.json({ ok: true });
   } catch (err) {
+    console.log('[v0-DEBUG] ERROR en POST:', err.message);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
