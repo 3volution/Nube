@@ -33,14 +33,14 @@ export async function sendCallAlert({ phoneNumber, stationName, attempt = 1 }) {
 
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="alice" language="es-ES">Alerta. Cargador disponible en ${stationName}. Intento ${attempt} de 2. Confirma en la aplicacion.</Say>
+  <Say voice="alice" language="es-ES">Alerta. Cargador disponible en ${stationName}. Intento 1 de 1. Confirma en la aplicacion.</Say>
 </Response>`;
 
     const result = await client.calls.create({
       from: process.env.TWILIO_PHONE_NUMBER,
       to: phoneNumber,
       twiml: twiml,
-      timeout: 14,
+      timeout: 6,
       statusCallback: `${BASE_URL}/api/twilio/call-status`,
       statusCallbackMethod: 'POST',
       statusCallbackEvent: ['completed'],

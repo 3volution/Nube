@@ -213,7 +213,7 @@ export async function GET(request) {
                 station_name: watcher.station_name,
                 station_id: String(watcher.station_id),
                 call_attempt: 1,
-                max_attempts: 2,
+                max_attempts: 1,
                 status: 'ringing',
                 call_sid: callResult.callSid,
                 last_attempt_at: new Date().toISOString(),
