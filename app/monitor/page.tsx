@@ -89,7 +89,7 @@ export default function MonitorPage() {
     try {
       const [stationsRes, changesRes, logsRes] = await Promise.all([
         fetch('/api/stations'),
-        fetch('/api/state-changes?limit=10000'),
+        fetch('/api/state-changes?limit=2000'),
         fetch('/api/logs?limit=100')
       ]);
 
@@ -228,7 +228,11 @@ export default function MonitorPage() {
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       const sortedCharges = uniqueCharges
         .sort((a, b) => new Date(b.startTimestamp || b.timestamp).getTime() - new Date(a.startTimestamp || a.timestamp).getTime())
-        .filter(c => new Date(c.startTimestamp || c.timestamp).getTime() >= thirtyDaysAgo.getTime());
+        .filter(c => {
+          const is30DaysOld = new Date(c.startTimestamp || c.timestamp).getTime() >= thirtyDaysAgo.getTime();
+          const isVisible = !c.isCompleted || c.durationMinutes >= 5;  // Ocultar cargas completadas < 5 min
+          return is30DaysOld && isVisible;
+        });
 
       setChargeHistory(sortedCharges);
       
@@ -333,7 +337,7 @@ export default function MonitorPage() {
     return () => clearInterval(interval);
   }, []);
 
-  // Re-renderizar cada segundo para actualizar los tiempos dinámicamente (como en Scriptable)
+  // Actualizar sancionables y ocupación cada 30 segundos
   useEffect(() => {
     const timer = setInterval(() => {
       // Calcular estadísticas AHORA MISMO
@@ -363,18 +367,16 @@ export default function MonitorPage() {
       setSanctionableCharges(sanctionable);
       setCurrentlyOccupied(occupied);
       setGlobalOccupancy(occupancyPercent);
-      
-      setStations(prev => [...prev]); // Forzar re-render sin cambiar data
-    }, 1000);
+    }, 30000);
     setIntervals(prev => [...prev, timer]);
     return () => clearInterval(timer);
   }, [stations]);
 
-  // Reloj con segundero activo
+  // Actualizar reloj cada 30 segundos
   useEffect(() => {
     const clockInterval = setInterval(() => {
       setCurrentTime(new Date());
-    }, 1000);
+    }, 30000);
     setIntervals(prev => [...prev, clockInterval]);
     return () => clearInterval(clockInterval);
   }, []);

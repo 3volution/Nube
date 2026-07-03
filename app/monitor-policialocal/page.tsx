@@ -37,7 +37,7 @@ export default function PoliciaLocalPage() {
     try {
       const [stationsRes, changesRes] = await Promise.all([
         fetch('/api/stations'),
-        fetch('/api/state-changes?limit=10000')
+        fetch('/api/state-changes?limit=2000')
       ]);
 
       if (stationsRes.ok) {
@@ -120,16 +120,14 @@ export default function PoliciaLocalPage() {
       // Agregar eventos SUELTOS (liberaciones sin inicio registrado)
       Object.values(changesByConnector).forEach(connectorChanges => {
         connectorChanges.forEach(change => {
-          // Si es FREE o AVAILABLE y no ha sido procesado (evento suelto)
           if ((change.new_status === 'FREE' || change.new_status === 'AVAILABLE')) {
             const eventKey = `${change.connector_id}-${change.timestamp}-${change.new_status}`;
             if (!processedEventIndices.has(eventKey)) {
-              // Es un evento suelto (liberación sin inicio registrado)
               chargesWithStatus.push({
                 ...change,
                 startTimestamp: change.timestamp,
-                isCompleted: false, // Marca como incompleta
-                durationMinutes: -1, // Indica "sin datos"
+                isCompleted: false,
+                durationMinutes: -1,
                 isOverLimit: false
               });
               processedEventIndices.add(eventKey);
@@ -138,26 +136,17 @@ export default function PoliciaLocalPage() {
         });
       });
       
-      // Deduplicar usando startTimestamp como referencia real de inicio de carga
-      const uniqueCharges = [];
-      const chargeKeys = new Set<string>();
-      
-      chargesWithStatus.forEach(charge => {
-        const chargeDate = new Date(charge.startTimestamp);
-        const chargeKey = `${charge.connector_id}-${chargeDate.getFullYear()}-${chargeDate.getMonth()}-${chargeDate.getDate()}-${chargeDate.getHours()}`;
-        
-        if (!chargeKeys.has(chargeKey)) {
-          chargeKeys.add(chargeKey);
-          uniqueCharges.push(charge);
-        }
-      });
-      
-      // Ordenar por startTimestamp descendente (más reciente primero), filtrar últimos 30 días
+      // Filtrar por últimos 30 días y ocultar cargas < 5 min
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      const sortedCharges = uniqueCharges
+      
+      const sortedCharges = chargesWithStatus
         .sort((a, b) => new Date(b.startTimestamp || b.timestamp).getTime() - new Date(a.startTimestamp || a.timestamp).getTime())
-        .filter(c => new Date(c.startTimestamp || c.timestamp).getTime() >= thirtyDaysAgo.getTime());
+        .filter(c => {
+          const is30DaysOld = new Date(c.startTimestamp || c.timestamp).getTime() >= thirtyDaysAgo.getTime();
+          const isVisible = !c.isCompleted || c.durationMinutes >= 5;  // Ocultar cargas completadas < 5 min
+          return is30DaysOld && isVisible;
+        });
 
       setChargeHistory(sortedCharges);
     }
@@ -170,7 +159,7 @@ export default function PoliciaLocalPage() {
     return () => clearInterval(interval);
   }, []);
 
-  // Re-renderizar cada segundo para actualizar sancionables en tiempo real
+  // Actualizar sancionables cada 30 segundos
   useEffect(() => {
     const timer = setInterval(() => {
       let sanctionable = 0;
@@ -189,17 +178,16 @@ export default function PoliciaLocalPage() {
       });
       
       setSanctionableCharges(sanctionable);
-      setStations(prev => [...prev]);
-    }, 1000);
+    }, 30000);
     setIntervals(prev => [...prev, timer]);
     return () => clearInterval(timer);
   }, [stations]);
 
-  // Reloj con segundero activo
+  // Actualizar reloj cada 30 segundos
   useEffect(() => {
     const clockInterval = setInterval(() => {
       setCurrentTime(new Date());
-    }, 1000);
+    }, 30000);
     setIntervals(prev => [...prev, clockInterval]);
     return () => clearInterval(clockInterval);
   }, []);
