@@ -180,7 +180,7 @@ export async function GET(request) {
             }
           }
 
-          // Actualizar snapshot en charger_state
+          // Actualizar snapshot en charger_state usando cliente Supabase
           const formattedConnectors = conectoresActuales.map(c => ({
             id: c.id,
             visualRef: c.visualRef || String(c.id),
@@ -190,31 +190,19 @@ export async function GET(request) {
             status_changed_at: c.status_changed_at
           }));
 
-          if (SUPABASE_URL && SUPABASE_KEY) {
-            try {
-              await fetch(
-                `${SUPABASE_URL}/rest/v1/charger_state?station_id=eq.${estacion.id}`,
-                {
-                  method: 'PUT',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${SUPABASE_KEY}`,
-                    'apikey': SUPABASE_KEY,
-                    'Prefer': 'return=minimal'
-                  },
-                  body: JSON.stringify({
-                    station_id: String(estacion.id),
-                    station_name: estacion.nombre,
-                    state: formattedConnectors,
-                    last_check: new Date().toISOString()
-                  })
-                }
-              ).catch(err => {
-                errors.push(`[${estacion.nombre}] Error updating charger_state: ${err.message}`);
-              });
-            } catch (err) {
-              errors.push(`[${estacion.nombre}] Error updating charger_state: ${err.message}`);
-            }
+          const { error: updateError } = await supabase
+            .from('charger_state')
+            .upsert({
+              station_id: String(estacion.id),
+              station_name: estacion.nombre,
+              state: formattedConnectors,
+              last_check: new Date().toISOString()
+            }, {
+              onConflict: 'station_id'
+            });
+
+          if (updateError) {
+            errors.push(`[${estacion.nombre}] Error updating charger_state: ${updateError.message}`);
           }
 
         } catch (stationError) {
