@@ -33,6 +33,38 @@ export default function PoliciaLocalPage() {
     return icons[hash % icons.length];
   };
 
+  const calculateSanctionable = (stationsData: any[]) => {
+    let sanctionable = 0;
+    stationsData.forEach(station => {
+      station.connectors?.forEach(connector => {
+        // Contar conectores ocupados que exceden 2 horas
+        if (connector.status !== 'FREE' && connector.status !== 'AVAILABLE') {
+          // Validar que status_changed_at sea válido
+          if (!connector.status_changed_at) {
+            // Ignorar conectores sin timestamp válido
+            return;
+          }
+          
+          try {
+            const startTime = new Date(connector.status_changed_at).getTime();
+            // Verificar que la fecha sea válida (no NaN)
+            if (isNaN(startTime)) {
+              return;
+            }
+            const durationMinutes = Math.floor((Date.now() - startTime) / 60000);
+            if (durationMinutes > 120) {
+              sanctionable++;
+            }
+          } catch (e) {
+            // Ignorar conectores con error en parsing de fecha
+            return;
+          }
+        }
+      });
+    });
+    return sanctionable;
+  };
+
   const fetchData = async () => {
     try {
       const [stationsRes, changesRes] = await Promise.all([
@@ -159,25 +191,17 @@ export default function PoliciaLocalPage() {
     return () => clearInterval(interval);
   }, []);
 
+  // Calcular sancionables inmediatamente cuando stations cambia
+  useEffect(() => {
+    if (stations.length > 0) {
+      setSanctionableCharges(calculateSanctionable(stations));
+    }
+  }, [stations]);
+
   // Actualizar sancionables cada 30 segundos
   useEffect(() => {
     const timer = setInterval(() => {
-      let sanctionable = 0;
-      
-      stations.forEach(station => {
-        station.connectors?.forEach(connector => {
-          // Contar conectores ocupados que exceden 2 horas
-          if (connector.status !== 'FREE' && connector.status !== 'AVAILABLE') {
-            const startTime = new Date(connector.status_changed_at).getTime();
-            const durationMinutes = Math.floor((Date.now() - startTime) / 60000);
-            if (durationMinutes > 120) {
-              sanctionable++;
-            }
-          }
-        });
-      });
-      
-      setSanctionableCharges(sanctionable);
+      setSanctionableCharges(calculateSanctionable(stations));
     }, 30000);
     setIntervals(prev => [...prev, timer]);
     return () => clearInterval(timer);
