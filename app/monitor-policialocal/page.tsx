@@ -42,6 +42,69 @@ export default function PoliciaLocalPage() {
     }).length;
   };
 
+  const deduplicateSanctionable = (charges: any[]) => {
+    // Agrupar por connector_id + station_name
+    const groups: Record<string, any[]> = {};
+    
+    charges.forEach(charge => {
+      const key = `${charge.connector_id}-${charge.station_name}`;
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(charge);
+    });
+
+    // Para cada grupo, eliminar duplicados que se solapan o tienen finales < 10 min separados
+    const deduped: any[] = [];
+    
+    Object.values(groups).forEach(groupCharges => {
+      if (groupCharges.length === 1) {
+        deduped.push(groupCharges[0]);
+        return;
+      }
+      
+      // Ordenar por startTimestamp ascendente
+      const sorted = [...groupCharges].sort((a, b) => 
+        new Date(a.startTimestamp).getTime() - new Date(b.startTimestamp).getTime()
+      );
+      
+      // Mantener primera carga, luego verificar solapamientos
+      const kept: any[] = [sorted[0]];
+      
+      for (let i = 1; i < sorted.length; i++) {
+        const current = sorted[i];
+        const last = kept[kept.length - 1];
+        
+        // Calcular tiempos
+        const lastStartMs = new Date(last.startTimestamp).getTime();
+        const lastEndMs = new Date(last.timestamp).getTime();
+        const currentStartMs = new Date(current.startTimestamp).getTime();
+        const currentEndMs = new Date(current.timestamp).getTime();
+        
+        // Verificar solapamiento: current.start < last.end
+        const isOverlapping = currentStartMs < lastEndMs;
+        
+        // Verificar separación: |current.end - last.end| < 10 min (600000 ms)
+        const finalsSeparation = Math.abs(currentEndMs - lastEndMs);
+        const isNearFinal = finalsSeparation < 600000;
+        
+        // Si se solapan O finales están separados < 10 min, es un duplicado
+        if (isOverlapping || isNearFinal) {
+          // Conservar la de mayor duración
+          if (current.durationMinutes > last.durationMinutes) {
+            kept[kept.length - 1] = current;
+          }
+          // Si no, mantener la última (last) sin cambios
+        } else {
+          // No es duplicado, mantener ambas
+          kept.push(current);
+        }
+      }
+      
+      deduped.push(...kept);
+    });
+    
+    return deduped;
+  };
+
   const fetchData = async () => {
     try {
       const [stationsRes, changesRes] = await Promise.all([
@@ -157,7 +220,10 @@ export default function PoliciaLocalPage() {
           return is30DaysOld && isSanctionable;
         });
 
-      setChargeHistory(sortedCharges);
+      // Aplicar deduplicación visual para eliminar duplicados antiguos
+      const deduplicatedCharges = deduplicateSanctionable(sortedCharges);
+
+      setChargeHistory(deduplicatedCharges);
     }
   }, [stateChanges]);
 
