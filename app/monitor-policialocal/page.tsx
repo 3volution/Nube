@@ -33,36 +33,13 @@ export default function PoliciaLocalPage() {
     return icons[hash % icons.length];
   };
 
-  const calculateSanctionable = (stationsData: any[]) => {
-    let sanctionable = 0;
-    stationsData.forEach(station => {
-      station.connectors?.forEach(connector => {
-        // Contar conectores ocupados que exceden 2 horas
-        if (connector.status !== 'FREE' && connector.status !== 'AVAILABLE') {
-          // Validar que status_changed_at sea válido
-          if (!connector.status_changed_at) {
-            // Ignorar conectores sin timestamp válido
-            return;
-          }
-          
-          try {
-            const startTime = new Date(connector.status_changed_at).getTime();
-            // Verificar que la fecha sea válida (no NaN)
-            if (isNaN(startTime)) {
-              return;
-            }
-            const durationMinutes = Math.floor((Date.now() - startTime) / 60000);
-            if (durationMinutes > 120) {
-              sanctionable++;
-            }
-          } catch (e) {
-            // Ignorar conectores con error en parsing de fecha
-            return;
-          }
-        }
-      });
-    });
-    return sanctionable;
+  const calculateSanctionable = (charges: any[]) => {
+    // Contar cargas completadas del día actual con durationMinutes > 120
+    const today = new Date().toLocaleDateString('es-ES');
+    return charges.filter(c => {
+      const chargeDate = new Date(c.startTimestamp || c.timestamp).toLocaleDateString('es-ES');
+      return chargeDate === today && c.isCompleted && c.durationMinutes > 120;
+    }).length;
   };
 
   const fetchData = async () => {
@@ -176,8 +153,8 @@ export default function PoliciaLocalPage() {
         .sort((a, b) => new Date(b.startTimestamp || b.timestamp).getTime() - new Date(a.startTimestamp || a.timestamp).getTime())
         .filter(c => {
           const is30DaysOld = new Date(c.startTimestamp || c.timestamp).getTime() >= thirtyDaysAgo.getTime();
-          const isVisible = !c.isCompleted || c.durationMinutes >= 5;  // Ocultar cargas completadas < 5 min
-          return is30DaysOld && isVisible;
+          const isSanctionable = c.isCompleted && c.durationMinutes > 120;  // Solo cargas completas > 120 min
+          return is30DaysOld && isSanctionable;
         });
 
       setChargeHistory(sortedCharges);
@@ -191,21 +168,23 @@ export default function PoliciaLocalPage() {
     return () => clearInterval(interval);
   }, []);
 
-  // Calcular sancionables inmediatamente cuando stations cambia
+  // Calcular sancionables inmediatamente cuando chargeHistory cambia
   useEffect(() => {
-    if (stations.length > 0) {
-      setSanctionableCharges(calculateSanctionable(stations));
+    if (chargeHistory.length > 0) {
+      setSanctionableCharges(calculateSanctionable(chargeHistory));
+    } else {
+      setSanctionableCharges(0);
     }
-  }, [stations]);
+  }, [chargeHistory]);
 
   // Actualizar sancionables cada 30 segundos
   useEffect(() => {
     const timer = setInterval(() => {
-      setSanctionableCharges(calculateSanctionable(stations));
+      setSanctionableCharges(calculateSanctionable(chargeHistory));
     }, 30000);
     setIntervals(prev => [...prev, timer]);
     return () => clearInterval(timer);
-  }, [stations]);
+  }, [chargeHistory]);
 
   // Actualizar reloj cada 30 segundos
   useEffect(() => {
@@ -430,10 +409,10 @@ export default function PoliciaLocalPage() {
           <div className="mt-8">
             <h2 className="text-2xl font-bold text-white mb-4">Histórico de Cargas Sancionables</h2>
             <div className="bg-slate-800 rounded-lg overflow-hidden">
-              {chargeHistory.filter(c => c.isOverLimit).length > 0 ? (
+              {chargeHistory.length > 0 ? (
                 <div className="max-h-[80vh] overflow-y-auto">
-                  {chargeHistory.filter(c => c.isOverLimit).map((charge, idx) => {
-                    const filteredCharges = chargeHistory.filter(c => c.isOverLimit);
+                  {chargeHistory.map((charge, idx) => {
+                    const filteredCharges = chargeHistory;
                     // Usar startTimestamp como fecha de referencia real (inicio de carga)
                     const timestamp = new Date(charge.startTimestamp || charge.timestamp);
                     const timeStr = timestamp.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
