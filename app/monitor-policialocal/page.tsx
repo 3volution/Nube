@@ -506,6 +506,17 @@ export default function PoliciaLocalPage() {
                       const firstCharge = sortedCharges[0];
                       const timestamp = new Date(firstCharge.startTimestamp || firstCharge.timestamp);
                       const dayFormatted = timestamp.toLocaleDateString('es-ES', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' }).toUpperCase();
+                      
+                      // Contar total de cargas (sin filtro) de este día desde chargesWithStatus
+                      const dayDateString = timestamp.toLocaleDateString('es-ES');
+                      let totalChargesThisDay = 0;
+                      stateChanges.forEach(change => {
+                        const changeTime = new Date(change.timestamp);
+                        const changeDateString = changeTime.toLocaleDateString('es-ES');
+                        if (changeDateString === dayDateString && change.new_status !== 'FREE' && change.new_status !== 'AVAILABLE') {
+                          totalChargesThisDay++;
+                        }
+                      });
 
                       return (
                         <div key={dayKey}>
@@ -515,7 +526,7 @@ export default function PoliciaLocalPage() {
                               {dayFormatted}
                             </div>
                             <div className="text-sm text-slate-800">
-                              Cargas: <span className="text-blue-600 font-bold">{sortedCharges.length}</span> | Sancionables: <span className="text-red-600 font-bold">{sortedCharges.length}</span>
+                              Cargas: <span className="text-blue-600 font-bold">{totalChargesThisDay}</span> | Sancionables: <span className="text-red-600 font-bold">{sortedCharges.length}</span>
                             </div>
                           </div>
 
