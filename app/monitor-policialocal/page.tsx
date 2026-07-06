@@ -477,69 +477,83 @@ export default function PoliciaLocalPage() {
             <div className="bg-slate-800 rounded-lg overflow-hidden">
               {chargeHistory.length > 0 ? (
                 <div className="max-h-[80vh] overflow-y-auto">
-                  {chargeHistory.map((charge, idx) => {
-                    const filteredCharges = chargeHistory;
-                    // Usar startTimestamp como fecha de referencia real (inicio de carga)
-                    const timestamp = new Date(charge.startTimestamp || charge.timestamp);
-                    const timeStr = timestamp.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-                    const dateStr = timestamp.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
-                    
-                    // Detectar cambio de día usando startTimestamp
-                    let showDaySeparator = idx === 0;
-                    if (idx > 0) {
-                      const prevTimestamp = new Date(filteredCharges[idx - 1].startTimestamp || filteredCharges[idx - 1].timestamp);
-                      showDaySeparator = timestamp.toLocaleDateString('es-ES') !== prevTimestamp.toLocaleDateString('es-ES');
-                    }
+                  {(() => {
+                    // Agrupar chargeHistory por día
+                    const groupedByDay: Record<string, any[]> = {};
+                    chargeHistory.forEach(charge => {
+                      const timestamp = new Date(charge.startTimestamp || charge.timestamp);
+                      const dayKey = timestamp.toLocaleDateString('es-ES');
+                      if (!groupedByDay[dayKey]) groupedByDay[dayKey] = [];
+                      groupedByDay[dayKey].push(charge);
+                    });
 
-                    // Estadísticas reales del día usando startTimestamp
-                    const dayStr = timestamp.toLocaleDateString('es-ES');
-                    const dayOverLimit = filteredCharges.filter(c =>
-                      new Date(c.startTimestamp || c.timestamp).toLocaleDateString('es-ES') === dayStr
-                    ).length;
-                    
-                    // Formato duracion
-                    const mins = charge.durationMinutes || 0;
-                    const durationStr = mins === -1
-                      ? 'Inicio no registrado'
-                      : (mins >= 60 
-                          ? `${Math.floor(mins / 60)}h ${mins % 60}m` 
-                          : `${mins}m`);
-                    
-                    return (
-                      <div key={idx}>
-                        {/* Separador de día con estadísticas reales */}
-                        {showDaySeparator && (
+                    // Ordenar días en forma descendente (más reciente primero)
+                    const sortedDays = Object.keys(groupedByDay).sort((a, b) => {
+                      const dateA = new Date(a.split('/').reverse().join('-')).getTime();
+                      const dateB = new Date(b.split('/').reverse().join('-')).getTime();
+                      return dateB - dateA;
+                    });
+
+                    // Renderizar un bloque por día
+                    return sortedDays.map(dayKey => {
+                      const chargesOfDay = groupedByDay[dayKey];
+                      // Ordenar cargas del día por hora ascendente
+                      const sortedCharges = [...chargesOfDay].sort((a, b) =>
+                        new Date(a.startTimestamp || a.timestamp).getTime() - new Date(b.startTimestamp || b.timestamp).getTime()
+                      );
+                      
+                      // Construir fecha formateada
+                      const firstCharge = sortedCharges[0];
+                      const timestamp = new Date(firstCharge.startTimestamp || firstCharge.timestamp);
+                      const dayFormatted = timestamp.toLocaleDateString('es-ES', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' }).toUpperCase();
+
+                      return (
+                        <div key={dayKey}>
+                          {/* Separador de día con contador */}
                           <div className="bg-slate-200 px-3 py-3 border-b-2 border-slate-400">
                             <div className="font-bold text-slate-900 text-sm mb-1">
-                              {timestamp.toLocaleDateString('es-ES', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' }).toUpperCase()}
+                              {dayFormatted}
                             </div>
                             <div className="text-sm text-slate-800">
-                              Sancionables: <span className="text-red-600 font-bold">{dayOverLimit}</span>
+                              Sancionables: <span className="text-red-600 font-bold">{sortedCharges.length}</span>
                             </div>
                           </div>
-                        )}
-                        
-                        {/* Línea de carga sancionable (roja) */}
-                        <div className="bg-red-900/70 px-3 py-2 flex items-start gap-2 border-b border-slate-600 last:border-b-0">
-                          <span className="text-2xl mt-1">{getCarIcon(charge.connector_id, idx)}</span>
-                          <div className="flex-1">
-                            {/* Primera línea: fecha, hora, ID */}
-                            <div className="font-mono text-sm text-slate-300 flex gap-3 mb-1">
-                              <span className="text-slate-400">{dateStr} {timeStr}</span>
-                              <span className="text-blue-300 font-bold">ID: {charge.connector_id}</span>
-                            </div>
-                            {/* Segunda línea: ubicación y tiempo */}
-                            <div className="font-mono text-sm flex gap-3 items-center">
-                              <span className="text-slate-300">{charge.station_name}</span>
-                              <span className="text-red-400 font-bold">
-                                {durationStr}
-                              </span>
-                            </div>
-                          </div>
+
+                          {/* Cargas del día */}
+                          {sortedCharges.map((charge, idx) => {
+                            const ts = new Date(charge.startTimestamp || charge.timestamp);
+                            const timeStr = ts.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+                            const dateStr = ts.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
+                            
+                            const mins = charge.durationMinutes || 0;
+                            const durationStr = mins === -1
+                              ? 'Inicio no registrado'
+                              : (mins >= 60 
+                                  ? `${Math.floor(mins / 60)}h ${mins % 60}m` 
+                                  : `${mins}m`);
+
+                            return (
+                              <div key={`${dayKey}-${idx}`} className="bg-red-900/70 px-3 py-2 flex items-start gap-2 border-b border-slate-600 last:border-b-0">
+                                <span className="text-2xl mt-1">{getCarIcon(charge.connector_id, idx)}</span>
+                                <div className="flex-1">
+                                  <div className="font-mono text-sm text-slate-300 flex gap-3 mb-1">
+                                    <span className="text-slate-400">{dateStr} {timeStr}</span>
+                                    <span className="text-blue-300 font-bold">ID: {charge.connector_id}</span>
+                                  </div>
+                                  <div className="font-mono text-sm flex gap-3 items-center">
+                                    <span className="text-slate-300">{charge.station_name}</span>
+                                    <span className="text-red-400 font-bold">
+                                      {durationStr}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    });
+                  })()}
                 </div>
               ) : (
                 <div className="bg-slate-800 p-4 text-slate-400 text-center">
