@@ -515,7 +515,7 @@ export default function PoliciaLocalPage() {
                               {dayFormatted}
                             </div>
                             <div className="text-sm text-slate-800">
-                              Sancionables: <span className="text-red-600 font-bold">{sortedCharges.length}</span>
+                              Cargas: <span className="text-blue-600 font-bold">{sortedCharges.length}</span> | Sancionables: <span className="text-red-600 font-bold">{sortedCharges.length}</span>
                             </div>
                           </div>
 
