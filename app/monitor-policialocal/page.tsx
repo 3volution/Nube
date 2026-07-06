@@ -159,7 +159,8 @@ export default function PoliciaLocalPage() {
           const eventKey = `${change.connector_id}-${change.timestamp}-${change.new_status}`;
           if (processedEventIndices.has(eventKey)) continue;
           
-          if (change.new_status !== 'FREE' && change.new_status !== 'AVAILABLE') {
+          // Solo considerar cambios a OCCUPIED (excluir OUT_OF_SERVICE, UNKNOWN, etc.)
+          if (change.new_status === 'OCCUPIED') {
             const startTime = new Date(change.timestamp).getTime();
             let endEvent = null;
             
@@ -507,13 +508,13 @@ export default function PoliciaLocalPage() {
                       const timestamp = new Date(firstCharge.startTimestamp || firstCharge.timestamp);
                       const dayFormatted = timestamp.toLocaleDateString('es-ES', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' }).toUpperCase();
                       
-                      // Contar total de cargas (sin filtro) de este día desde chargesWithStatus
+                      // Contar total de cargas (OCCUPIED solo) de este día desde stateChanges
                       const dayDateString = timestamp.toLocaleDateString('es-ES');
                       let totalChargesThisDay = 0;
                       stateChanges.forEach(change => {
                         const changeTime = new Date(change.timestamp);
                         const changeDateString = changeTime.toLocaleDateString('es-ES');
-                        if (changeDateString === dayDateString && change.new_status !== 'FREE' && change.new_status !== 'AVAILABLE') {
+                        if (changeDateString === dayDateString && change.new_status === 'OCCUPIED') {
                           totalChargesThisDay++;
                         }
                       });
