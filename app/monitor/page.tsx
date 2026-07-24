@@ -18,52 +18,45 @@ export default function MonitorPage() {
   const [globalOccupancy, setGlobalOccupancy] = useState(0); // Porcentaje ocupación global
   const [sanctionableCharges, setSanctionableCharges] = useState(0); // Cargas > 2 horas EN TIEMPO REAL
   const [todayCharges, setTodayCharges] = useState(() => {
-    // Intentar cargar valor anterior de localStorage
-    if (typeof window !== 'undefined') {
-      const cachedDate = localStorage.getItem('cachedDate');
-      const today = new Date().toDateString();
-      
-      // Si el cache es del mismo día, reutilizar; sino, resetear
-      if (cachedDate === today) {
-        const cached = localStorage.getItem('todayCharges');
-        return cached ? parseInt(cached) : 0;
-      } else {
-        localStorage.setItem('cachedDate', today);
-        return 0;
+    try {
+      if (typeof window !== 'undefined') {
+        const cachedDate = localStorage.getItem('cachedDate');
+        const today = new Date().toDateString();
+        if (cachedDate === today) {
+          const cached = localStorage.getItem('todayCharges');
+          return cached ? parseInt(cached) : 0;
+        } else {
+          localStorage.setItem('cachedDate', today);
+          return 0;
+        }
       }
-    }
+    } catch { /* Safari privado bloquea localStorage */ }
     return 0;
   }); // Total cargas HOY desde 00:00
   const [todayOccupancy, setTodayOccupancy] = useState(() => {
-    // Intentar cargar valor anterior de localStorage
-    if (typeof window !== 'undefined') {
-      const cachedDate = localStorage.getItem('cachedDate');
-      const today = new Date().toDateString();
-      
-      // Si el cache es del mismo día, reutilizar; sino, resetear
-      if (cachedDate === today) {
-        const cached = localStorage.getItem('todayOccupancy');
-        return cached ? parseInt(cached) : 0;
-      } else {
-        return 0;
+    try {
+      if (typeof window !== 'undefined') {
+        const cachedDate = localStorage.getItem('cachedDate');
+        const today = new Date().toDateString();
+        if (cachedDate === today) {
+          const cached = localStorage.getItem('todayOccupancy');
+          return cached ? parseInt(cached) : 0;
+        }
       }
-    }
+    } catch { /* Safari privado bloquea localStorage */ }
     return 0;
   }); // Ocupación promedio HOY
   const [todaySanctionable, setTodaySanctionable] = useState(() => {
-    // Intentar cargar valor anterior de localStorage
-    if (typeof window !== 'undefined') {
-      const cachedDate = localStorage.getItem('cachedDate');
-      const today = new Date().toDateString();
-      
-      // Si el cache es del mismo día, reutilizar; sino, resetear
-      if (cachedDate === today) {
-        const cached = localStorage.getItem('todaySanctionable');
-        return cached ? parseInt(cached) : 0;
-      } else {
-        return 0;
+    try {
+      if (typeof window !== 'undefined') {
+        const cachedDate = localStorage.getItem('cachedDate');
+        const today = new Date().toDateString();
+        if (cachedDate === today) {
+          const cached = localStorage.getItem('todaySanctionable');
+          return cached ? parseInt(cached) : 0;
+        }
       }
-    }
+    } catch { /* Safari privado bloquea localStorage */ }
     return 0;
   }); // Total sancionables HOY
   const [currentlyOccupied, setCurrentlyOccupied] = useState(0); // Conectores OCUPADOS en este momento
@@ -89,7 +82,7 @@ export default function MonitorPage() {
     try {
       const [stationsRes, changesRes, logsRes] = await Promise.all([
         fetch('/api/stations'),
-        fetch('/api/state-changes?limit=2000'),
+        fetch('/api/state-changes?limit=500'),
         fetch('/api/logs?limit=100')
       ]);
 
@@ -286,14 +279,16 @@ export default function MonitorPage() {
       setTodaySanctionable(todaySanctionableCount);
       setTodayOccupancy(occupancyPercent);
       
-      // Guardar en localStorage
-      if (typeof window !== 'undefined') {
-        const todayStr = new Date().toDateString();
-        localStorage.setItem('cachedDate', todayStr);
-        localStorage.setItem('todayCharges', todayChargesCount.toString());
-        localStorage.setItem('todaySanctionable', todaySanctionableCount.toString());
-        localStorage.setItem('todayOccupancy', occupancyPercent.toString());
-      }
+      // Guardar en localStorage (protegido contra Safari privado)
+      try {
+        if (typeof window !== 'undefined') {
+          const todayStr = new Date().toDateString();
+          localStorage.setItem('cachedDate', todayStr);
+          localStorage.setItem('todayCharges', todayChargesCount.toString());
+          localStorage.setItem('todaySanctionable', todaySanctionableCount.toString());
+          localStorage.setItem('todayOccupancy', occupancyPercent.toString());
+        }
+      } catch { /* Safari privado bloquea localStorage */ }
       
       // Calcular ocupancia por estación desde las 00:00
       const occupancyByStation = {};
