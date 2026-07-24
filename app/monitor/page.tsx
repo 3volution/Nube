@@ -368,7 +368,6 @@ export default function MonitorPage() {
       setCurrentlyOccupied(occupied);
       setGlobalOccupancy(occupancyPercent);
     }, 30000);
-    setIntervals(prev => [...prev, timer]);
     return () => clearInterval(timer);
   }, [stations]);
 
@@ -377,16 +376,14 @@ export default function MonitorPage() {
     const clockInterval = setInterval(() => {
       setCurrentTime(new Date());
     }, 30000);
-    setIntervals(prev => [...prev, clockInterval]);
     return () => clearInterval(clockInterval);
   }, []);
 
-  // Auto-recarga cada 60 segundos
+  // Auto-recarga de datos cada 60 segundos (sin reload de página)
   useEffect(() => {
     const reloadInterval = setInterval(() => {
-      window.location.reload();
+      fetchData();
     }, 60000);
-    setIntervals(prev => [...prev, reloadInterval]);
     return () => clearInterval(reloadInterval);
   }, []);
 
@@ -408,11 +405,10 @@ export default function MonitorPage() {
       if (elapsedTime > SESSION_TIMEOUT) {
         // Más de 2 minutos: limpiar sesión y redirigir
         sessionStorage.removeItem(SESSION_KEY);
-        intervals.forEach(interval => clearInterval(interval));
         window.location.href = '/';
       }
     }
-  }, [intervals]);
+  }, []);
 
   // Función para calcular tiempo transcurrido (igual que en Scriptable)
   const formatTime = (isoString) => {
