@@ -204,8 +204,12 @@ export function WatcherModal({ station, isOpen, onClose, onStart, onCancel, isWa
             </div>
 
             {error && (
-              <div className="mb-4 p-3 bg-red-900/50 border border-red-700 text-red-200 rounded text-sm">
-                {error}
+              <div className={`mb-4 p-3 rounded text-sm border ${
+                error.includes('environment') || error.includes('Supabase')
+                  ? 'bg-amber-900/50 border-amber-700 text-amber-200'
+                  : 'bg-red-900/50 border-red-700 text-red-200'
+              }`}>
+                {error.includes('environment') || error.includes('Supabase') ? '⚙️' : '⚠️'} {error}
               </div>
             )}
 
@@ -267,8 +271,12 @@ export function WatcherModal({ station, isOpen, onClose, onStart, onCancel, isWa
             </div>
 
             {error && (
-              <div className="mb-4 p-3 bg-red-900/50 border border-red-700 text-red-200 rounded text-sm">
-                {error}
+              <div className={`mb-4 p-3 rounded text-sm border ${
+                error.includes('environment') || error.includes('Supabase')
+                  ? 'bg-amber-900/50 border-amber-700 text-amber-200'
+                  : 'bg-red-900/50 border-red-700 text-red-200'
+              }`}>
+                {error.includes('environment') || error.includes('Supabase') ? '⚙️' : '⚠️'} {error}
               </div>
             )}
 
