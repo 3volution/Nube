@@ -6,7 +6,6 @@ import { WatcherModal } from '@/app/components/WatcherModal';
 import { CallEventModal } from '@/app/components/CallEventModal';
 
 export default function MonitorPage() {
-  const [intervals, setIntervals] = useState<NodeJS.Timeout[]>([]);
   const [stations, setStations] = useState([]);
   const [stateChanges, setStateChanges] = useState([]);
   const [logs, setLogs] = useState([]);
@@ -80,14 +79,14 @@ export default function MonitorPage() {
 
   const fetchData = async () => {
     try {
-      // Calcular fecha de hace 90 días para filtrar en la API
+      // Calcular fecha de hace 30 días para filtrar en la API (balance memoria/histórico)
       const sinceDate = new Date();
-      sinceDate.setDate(sinceDate.getDate() - 90);
+      sinceDate.setDate(sinceDate.getDate() - 30);
       const sinceParam = sinceDate.toISOString().split('T')[0]; // YYYY-MM-DD
 
       const [stationsRes, changesRes, logsRes] = await Promise.all([
         fetch('/api/stations'),
-        fetch(`/api/state-changes?limit=2000&since=${sinceParam}`),
+        fetch(`/api/state-changes?limit=500&since=${sinceParam}`),
         fetch('/api/logs?limit=100')
       ]);
 
@@ -146,8 +145,8 @@ export default function MonitorPage() {
           const eventKey = `${change.connector_id}-${change.timestamp}-${change.new_status}`;
           if (processedEventIndices.has(eventKey)) continue;
           
-          // Si es OCUPADO, es inicio de carga
-          if (change.new_status !== 'FREE' && change.new_status !== 'AVAILABLE') {
+          // Solo OCCUPIED es inicio de carga (excluir OUT_OF_SERVICE, UNKNOWN, etc.)
+          if (change.new_status === 'OCCUPIED') {
             const startTime = new Date(change.timestamp).getTime();
             let endEvent = null;
             let endEventIndex = -1;
@@ -221,9 +220,9 @@ export default function MonitorPage() {
         }
       });
       
-      // Ordenar por startTimestamp descendente (más reciente primero), filtrar últimos 90 días
+      // Ordenar por startTimestamp descendente (más reciente primero), filtrar últimos 30 días
       const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 90);
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       const sortedCharges = uniqueCharges
         .sort((a, b) => new Date(b.startTimestamp || b.timestamp).getTime() - new Date(a.startTimestamp || a.timestamp).getTime())
         .filter(c => {
@@ -306,7 +305,6 @@ export default function MonitorPage() {
   useEffect(() => {
     fetchData();
     const interval = setInterval(fetchData, 30000);
-    setIntervals(prev => [...prev, interval]);
     return () => clearInterval(interval);
   }, []);
 
@@ -318,7 +316,6 @@ export default function MonitorPage() {
         const data = await response.json();
         
         if (data.watchers) {
-          // Convertir array de vigilancias a objeto { station_id: true }
           const activeMap = {};
           data.watchers.forEach(watcher => {
             activeMap[watcher.station_id] = true;
@@ -331,9 +328,7 @@ export default function MonitorPage() {
     };
 
     loadActiveWatchers();
-    // Recargar vigilancias activas cada 30 segundos
     const interval = setInterval(loadActiveWatchers, 30000);
-    setIntervals(prev => [...prev, interval]);
     return () => clearInterval(interval);
   }, []);
 

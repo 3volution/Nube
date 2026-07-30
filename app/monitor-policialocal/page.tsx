@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import { APP_VERSION } from '@/app/config/version';
 
 export default function PoliciaLocalPage() {
-  const [intervals, setIntervals] = useState<NodeJS.Timeout[]>([]);
   const [stations, setStations] = useState([]);
   const [stateChanges, setStateChanges] = useState([]);
   const [chargeHistory, setChargeHistory] = useState([]);
@@ -107,14 +106,14 @@ export default function PoliciaLocalPage() {
 
   const fetchData = async () => {
     try {
-      // Filtrar los últimos 90 días en la API para no sobrecargar la memoria del móvil
+      // Filtrar los últimos 30 días en la API (balance memoria/histórico)
       const sinceDate = new Date();
-      sinceDate.setDate(sinceDate.getDate() - 90);
+      sinceDate.setDate(sinceDate.getDate() - 30);
       const sinceParam = sinceDate.toISOString().split('T')[0];
 
       const [stationsRes, changesRes] = await Promise.all([
         fetch('/api/stations'),
-        fetch(`/api/state-changes?limit=2000&since=${sinceParam}`)
+        fetch(`/api/state-changes?limit=500&since=${sinceParam}`)
       ]);
 
       if (stationsRes.ok) {
@@ -214,9 +213,9 @@ export default function PoliciaLocalPage() {
         });
       });
       
-      // Filtrar por últimos 90 días y ocultar cargas < 5 min
+      // Filtrar por últimos 30 días
       const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 90);
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       
       const sortedCharges = chargesWithStatus
         .sort((a, b) => new Date(b.startTimestamp || b.timestamp).getTime() - new Date(a.startTimestamp || a.timestamp).getTime())
