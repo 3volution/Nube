@@ -374,15 +374,20 @@ export default function PoliciaLocalPage() {
             </h1>
             <p className="text-slate-300 mb-4">Conectores ocupados más de 2 horas</p>
             
-            {/* Reloj y contador */}
+            {/* Reloj y contadores */}
             <div className="flex items-center justify-between bg-slate-800 bg-opacity-50 p-4 rounded-lg">
               <div className="text-white text-2xl font-mono">
                 {currentTime.toLocaleTimeString('es-ES')}
               </div>
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-6">
                 <div className="text-center">
-                  <div className="text-red-500 text-sm font-bold">SANCIONABLES</div>
-                  <div className="text-red-400 text-3xl font-bold">{sanctionableCharges}</div>
+                  <div className="text-orange-400 text-xs font-bold tracking-wider">SANCIONABLES HOY</div>
+                  <div className="text-orange-300 text-3xl font-bold">{sanctionableCharges}</div>
+                </div>
+                <div className="w-px h-10 bg-slate-600" />
+                <div className="text-center">
+                  <div className="text-red-500 text-xs font-bold tracking-wider">SANCIONABLES AHORA</div>
+                  <div className="text-red-400 text-3xl font-bold">{sanctionableIds.size}</div>
                 </div>
               </div>
             </div>
@@ -445,7 +450,9 @@ export default function PoliciaLocalPage() {
                     </div>
                     <div className="flex flex-col gap-2 items-end">
                       <div className="flex items-center gap-1 text-red-500 font-bold text-sm">
-                        <span>���️</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M12 2a10 10 0 100 20A10 10 0 0012 2zm0 15a1 1 0 110-2 1 1 0 010 2zm1-4a1 1 0 01-2 0V7a1 1 0 012 0v6z"/>
+                        </svg>
                         <span>{allOccupiedConnectors.filter(c => c.stationName === station.name && sanctionableIds.has(c.id)).length}</span>
                       </div>
                     </div>
