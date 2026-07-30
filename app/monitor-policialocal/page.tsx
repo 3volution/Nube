@@ -1,7 +1,17 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { APP_VERSION } from '@/app/config/version';
+
+const StationsMap = dynamic(() => import('@/app/components/StationsMap'), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-96 bg-slate-800 rounded-lg flex items-center justify-center">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400" />
+    </div>
+  ),
+});
 
 export default function PoliciaLocalPage() {
   const [stations, setStations] = useState([]);
@@ -313,6 +323,13 @@ export default function PoliciaLocalPage() {
     return 'bg-yellow-900 text-yellow-100 border-l-4 border-yellow-500';
   };
 
+  // Función para detectar cargadores con más de 2h
+  const hasOvertimeCharges = (connector: any) => {
+    if (connector.status !== 'OCCUPIED') return false;
+    const minutes = Math.floor((Date.now() - new Date(connector.status_changed_at).getTime()) / 60000);
+    return minutes > 120;
+  };
+
   // Obtener TODOS los conectores ocupados
   const allOccupiedConnectors = stations
     .flatMap(station => 
@@ -326,7 +343,7 @@ export default function PoliciaLocalPage() {
     .sort((a, b) => {
       const aDuration = Math.floor((Date.now() - new Date(a.status_changed_at).getTime()) / 60000);
       const bDuration = Math.floor((Date.now() - new Date(b.status_changed_at).getTime()) / 60000);
-      return bDuration - aDuration; // Mayor duración primero
+      return bDuration - aDuration;
     });
 
   // Identificar cuáles son sancionables
@@ -378,24 +395,44 @@ export default function PoliciaLocalPage() {
             </div>
           )}
 
-          {/* Conectores Ocupados - Formato exacto de monitor */}
+          {/* Mapa de estaciones */}
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-white font-bold text-lg">Mapa de Estaciones</h2>
+              <div className="flex items-center gap-4 text-xs">
+                <span className="flex items-center gap-1">
+                  <span className="inline-block w-3 h-3 rounded-full bg-green-500" />
+                  <span className="text-slate-400">Libre</span>
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="inline-block w-3 h-3 rounded-full bg-yellow-400" />
+                  <span className="text-slate-400">Ocupado</span>
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="inline-block w-3 h-3 rounded-full bg-red-500" />
+                  <span className="text-slate-400 font-semibold">Alerta +2h</span>
+                </span>
+              </div>
+            </div>
+            <div className="rounded-lg overflow-hidden border border-slate-600">
+              <StationsMap stations={stations} hasOvertimeCharges={hasOvertimeCharges} />
+            </div>
+          </div>
+
+          {/* Todas las estaciones con todos sus conectores */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {stations
-              .filter(station => allOccupiedConnectors.some(c => c.stationName === station.name))
               .sort((stationA, stationB) => {
-                // Obtener el tiempo máximo de ocupación de cada estación
-                const stationAConnectors = allOccupiedConnectors.filter(c => c.stationName === stationA.name);
-                const stationBConnectors = allOccupiedConnectors.filter(c => c.stationName === stationB.name);
-                
-                const maxTimeA = Math.max(...stationAConnectors.map(c => 
-                  Date.now() - new Date(c.status_changed_at).getTime()
-                ));
-                const maxTimeB = Math.max(...stationBConnectors.map(c => 
-                  Date.now() - new Date(c.status_changed_at).getTime()
-                ));
-                
-                // Ordenar descendente (mayor tiempo primero)
-                return maxTimeB - maxTimeA;
+                // Estaciones con sancionables primero, luego ocupadas, luego libres
+                const aHasSanctionable = stationA.connectors?.some(c => sanctionableIds.has(c.id));
+                const bHasSanctionable = stationB.connectors?.some(c => sanctionableIds.has(c.id));
+                if (aHasSanctionable && !bHasSanctionable) return -1;
+                if (!aHasSanctionable && bHasSanctionable) return 1;
+                const aHasOccupied = allOccupiedConnectors.some(c => c.stationName === stationA.name);
+                const bHasOccupied = allOccupiedConnectors.some(c => c.stationName === stationB.name);
+                if (aHasOccupied && !bHasOccupied) return -1;
+                if (!aHasOccupied && bHasOccupied) return 1;
+                return (STATION_ORDER[stationA.id] ?? 999) - (STATION_ORDER[stationB.id] ?? 999);
               })
               .map(station => (
                 <div
@@ -415,8 +452,13 @@ export default function PoliciaLocalPage() {
                   </div>
 
                   <div className="grid grid-cols-1 gap-3 max-h-96 overflow-y-auto pr-2">
-                    {station.connectors
-                      .filter(connector => allOccupiedConnectors.some(c => c.id === connector.id))
+                    {(station.connectors || [])
+                      .sort((a, b) => {
+                        // Sancionables primero, luego ocupados, luego libres
+                        const aScore = sanctionableIds.has(a.id) ? 2 : (a.status === 'OCCUPIED' ? 1 : 0);
+                        const bScore = sanctionableIds.has(b.id) ? 2 : (b.status === 'OCCUPIED' ? 1 : 0);
+                        return bScore - aScore;
+                      })
                       .map((connector, idx) => {
                         const isSanctionable = sanctionableIds.has(connector.id);
                         
@@ -459,10 +501,10 @@ export default function PoliciaLocalPage() {
               ))}
           </div>
 
-          {/* Mensaje si no hay conectores ocupados */}
-          {allOccupiedConnectors.length === 0 && (
-            <div className="bg-green-900 border-l-4 border-green-500 text-green-100 p-6 rounded text-center text-lg font-bold">
-              ✅ No hay conectores ocupados en este momento
+          {/* Mensaje si no hay estaciones cargadas */}
+          {stations.length === 0 && (
+            <div className="bg-slate-700 border-l-4 border-slate-500 text-slate-100 p-6 rounded text-center text-lg font-bold">
+              Sin datos de estaciones
             </div>
           )}
 
