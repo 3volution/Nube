@@ -80,9 +80,14 @@ export default function MonitorPage() {
 
   const fetchData = async () => {
     try {
+      // Calcular fecha de hace 90 días para filtrar en la API
+      const sinceDate = new Date();
+      sinceDate.setDate(sinceDate.getDate() - 90);
+      const sinceParam = sinceDate.toISOString().split('T')[0]; // YYYY-MM-DD
+
       const [stationsRes, changesRes, logsRes] = await Promise.all([
         fetch('/api/stations'),
-        fetch('/api/state-changes?limit=10000'),
+        fetch(`/api/state-changes?limit=2000&since=${sinceParam}`),
         fetch('/api/logs?limit=100')
       ]);
 

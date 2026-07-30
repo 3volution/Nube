@@ -2,10 +2,14 @@ export async function GET(request) {
   const SUPABASE_URL = process.env.SUPABASE_URL;
   const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY;
   const limit = request.nextUrl.searchParams.get('limit') || 100;
+  const since = request.nextUrl.searchParams.get('since'); // fecha ISO, e.g. 2026-05-01
+
+  // Construir filtro de fecha si se proporciona
+  const dateFilter = since ? `&timestamp=gte.${encodeURIComponent(since)}` : '';
 
   try {
     const response = await fetch(
-      `${SUPABASE_URL}/rest/v1/connector_state_changes?order=id.desc&limit=${limit}`,
+      `${SUPABASE_URL}/rest/v1/connector_state_changes?order=id.desc&limit=${limit}${dateFilter}`,
       {
         headers: {
           "Authorization": `Bearer ${SUPABASE_KEY}`,

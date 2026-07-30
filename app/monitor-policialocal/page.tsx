@@ -107,9 +107,14 @@ export default function PoliciaLocalPage() {
 
   const fetchData = async () => {
     try {
+      // Filtrar los últimos 90 días en la API para no sobrecargar la memoria del móvil
+      const sinceDate = new Date();
+      sinceDate.setDate(sinceDate.getDate() - 90);
+      const sinceParam = sinceDate.toISOString().split('T')[0];
+
       const [stationsRes, changesRes] = await Promise.all([
         fetch('/api/stations'),
-        fetch('/api/state-changes?limit=10000')
+        fetch(`/api/state-changes?limit=2000&since=${sinceParam}`)
       ]);
 
       if (stationsRes.ok) {
@@ -231,7 +236,6 @@ export default function PoliciaLocalPage() {
   useEffect(() => {
     fetchData();
     const interval = setInterval(fetchData, 30000);
-    setIntervals(prev => [...prev, interval]);
     return () => clearInterval(interval);
   }, []);
 
@@ -249,7 +253,6 @@ export default function PoliciaLocalPage() {
     const timer = setInterval(() => {
       setSanctionableCharges(calculateSanctionable(chargeHistory));
     }, 30000);
-    setIntervals(prev => [...prev, timer]);
     return () => clearInterval(timer);
   }, [chargeHistory]);
 
@@ -258,42 +261,34 @@ export default function PoliciaLocalPage() {
     const clockInterval = setInterval(() => {
       setCurrentTime(new Date());
     }, 30000);
-    setIntervals(prev => [...prev, clockInterval]);
     return () => clearInterval(clockInterval);
   }, []);
 
-  // Auto-recarga cada 60 segundos
+  // Auto-recarga de datos cada 60 segundos (sin reload de página)
   useEffect(() => {
     const reloadInterval = setInterval(() => {
-      window.location.reload();
+      fetchData();
     }, 60000);
-    setIntervals(prev => [...prev, reloadInterval]);
     return () => clearInterval(reloadInterval);
   }, []);
 
   // Validar sesión: auto-logout después de 120 segundos usando sessionStorage
   useEffect(() => {
     const SESSION_KEY = 'monitor_session_start';
-    const SESSION_TIMEOUT = 120000; // 120 segundos = 2 minutos
+    const SESSION_TIMEOUT = 120000;
 
-    // Obtener tiempo de inicio de sesión
     const storedStartTime = sessionStorage.getItem(SESSION_KEY);
 
     if (!storedStartTime) {
-      // Primera visita: guardar tiempo actual
       sessionStorage.setItem(SESSION_KEY, Date.now().toString());
     } else {
-      // Comprobar cuánto tiempo ha pasado
       const elapsedTime = Date.now() - parseInt(storedStartTime, 10);
-
       if (elapsedTime > SESSION_TIMEOUT) {
-        // Más de 2 minutos: limpiar sesión y redirigir
         sessionStorage.removeItem(SESSION_KEY);
-        intervals.forEach(interval => clearInterval(interval));
         window.location.href = '/';
       }
     }
-  }, [intervals]);
+  }, []);
 
   // Función para calcular tiempo transcurrido
   const formatTime = (isoString) => {
