@@ -76,14 +76,44 @@ export default function StationsMap({ stations, hasOvertimeCharges }: StationsMa
       const maplibre = await import('maplibre-gl');
       if (destroyed || !mapRef.current) return;
 
-      // Estilo oscuro moderno gratuito de OpenFreeMap
+      // Estilo oscuro moderno gratuito - MapTiler Basic Dark (sin token para OSM)
       const map = new maplibre.Map({
         container: mapRef.current,
-        style: 'https://tiles.openfreemap.org/styles/dark',
+        style: {
+          version: 8,
+          sources: {
+            'osm': {
+              type: 'raster',
+              tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+              tileSize: 256,
+              attribution: '© OpenStreetMap contributors',
+              maxzoom: 19,
+            },
+            'carto-dark': {
+              type: 'raster',
+              tiles: [
+                'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
+                'https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
+                'https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
+              ],
+              tileSize: 256,
+              attribution: '© OpenStreetMap contributors © CARTO',
+              maxzoom: 19,
+            },
+          },
+          layers: [
+            {
+              id: 'carto-dark-layer',
+              type: 'raster',
+              source: 'carto-dark',
+              minzoom: 0,
+              maxzoom: 22,
+            },
+          ],
+        },
         center: [-6.3500, 38.9185],
         zoom: 13.5,
         attributionControl: false,
-        logoPosition: 'bottom-left',
       });
 
       map.addControl(new maplibre.NavigationControl({ showCompass: false }), 'top-right');
