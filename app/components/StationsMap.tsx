@@ -155,64 +155,63 @@ export default function StationsMap({ stations, hasOvertimeCharges }: StationsMa
       }
 
       stationData.forEach(({ station, coords, alertLevel, occupiedCount, freeCount, overtimeConnectors }) => {
-        // Crear elemento del marcador
+        const isCritical = alertLevel === 'critical';
+        const fillColor  = isCritical ? '#ef4444' : '#3b82f6';
+        const label      = STATION_COORDS[station.id]?.label ?? '';
+
+        // Wrapper externo: tamaño fijo, cursor pointer
         const el = document.createElement('div');
-        el.style.cssText = `
+        el.style.cssText = 'cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:2px;';
+
+        // Anillos pulsantes solo para crítico
+        const rings = isCritical ? `
+          <span class="ring ring1" style="
+            position:absolute; inset:0;
+            border-radius:50%; border:2px solid #ef4444;
+            animation:ringPulse 1.4s ease-out infinite;
+          "></span>
+          <span class="ring ring2" style="
+            position:absolute; inset:0;
+            border-radius:50%; border:2px solid #ef4444;
+            animation:ringPulse 1.4s ease-out infinite 0.5s;
+          "></span>
+        ` : '';
+
+        // Círculo principal como inline-block para que se ancle bien
+        const dot = document.createElement('div');
+        dot.style.cssText = `
           position: relative;
-          width: 48px;
-          height: 48px;
-          cursor: pointer;
+          width: 28px;
+          height: 28px;
+          border-radius: 50%;
+          background: ${fillColor};
+          border: 3px solid ${isCritical ? '#7f1d1d' : '#1e3a8a'};
+          box-shadow: 0 0 12px ${isCritical ? 'rgba(239,68,68,0.7)' : 'rgba(59,130,246,0.5)'}, 0 2px 6px rgba(0,0,0,0.6);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
         `;
+        dot.innerHTML = rings;
 
-        const colors = {
-          critical: { bg: '#ef4444', border: '#7f1d1d', glow: 'rgba(239,68,68,0.6)' },
-          occupied: { bg: '#3b82f6', border: '#1e3a8a', glow: 'rgba(59,130,246,0.4)' },
-          free:     { bg: '#3b82f6', border: '#1e3a8a', glow: 'rgba(59,130,246,0.3)' },
-        };
-        const c = colors[alertLevel];
-
-        const icon = alertLevel === 'critical' ? '⚡' : '⚡';
-
-        el.innerHTML = `
-          ${alertLevel === 'critical' ? `
-            <div style="
-              position:absolute; top:50%; left:50%;
-              transform:translate(-50%,-50%);
-              width:68px; height:68px; border-radius:50%;
-              background:rgba(239,68,68,0.2);
-              animation:ringPulse 1.2s ease-out infinite;
-            "></div>
-            <div style="
-              position:absolute; top:50%; left:50%;
-              transform:translate(-50%,-50%);
-              width:56px; height:56px; border-radius:50%;
-              background:rgba(239,68,68,0.15);
-              animation:ringPulse 1.2s ease-out infinite 0.4s;
-            "></div>
-          ` : ''}
-          <div style="
-            position:absolute; top:50%; left:50%;
-            transform:translate(-50%,-50%);
-            width:44px; height:44px; border-radius:50%;
-            background:${c.bg};
-            border:3px solid ${c.border};
-            box-shadow: 0 0 16px ${c.glow}, 0 4px 8px rgba(0,0,0,0.5);
-            display:flex; flex-direction:column;
-            align-items:center; justify-content:center;
-            font-family:system-ui,sans-serif;
-          ">
-            <span style="font-size:16px; line-height:1;">${icon}</span>
-          </div>
-          <div style="
-            position:absolute; bottom:-20px; left:50%;
-            transform:translateX(-50%);
-            background:rgba(0,0,0,0.85);
-            color:#f1f5f9; font-size:9px; font-weight:600;
-            padding:2px 5px; border-radius:3px;
-            white-space:nowrap; font-family:system-ui,sans-serif;
-            border:1px solid rgba(255,255,255,0.1);
-          ">${STATION_COORDS[station.id]?.label}</div>
+        // Etiqueta debajo del círculo
+        const lbl = document.createElement('div');
+        lbl.style.cssText = `
+          background: rgba(0,0,0,0.85);
+          color: #f1f5f9;
+          font-size: 9px;
+          font-weight: 700;
+          padding: 1px 5px;
+          border-radius: 3px;
+          white-space: nowrap;
+          font-family: system-ui, sans-serif;
+          border: 1px solid rgba(255,255,255,0.15);
+          letter-spacing: 0.3px;
         `;
+        lbl.textContent = label;
+
+        el.appendChild(dot);
+        el.appendChild(lbl);
 
         // Popup al hacer clic
         const connectorsHtml = station.connectors
@@ -281,7 +280,8 @@ export default function StationsMap({ stations, hasOvertimeCharges }: StationsMa
           popupRef.current = popup;
         });
 
-        const marker = new maplibre.Marker({ element: el, anchor: 'center' })
+        // anchor:'top' porque el círculo es el primer elemento del flex column
+        const marker = new maplibre.Marker({ element: el, anchor: 'top' })
           .setLngLat([coords.lng, coords.lat])
           .addTo(map);
 
@@ -315,8 +315,8 @@ export default function StationsMap({ stations, hasOvertimeCharges }: StationsMa
     <>
       <style>{`
         @keyframes ringPulse {
-          0%   { transform: translate(-50%,-50%) scale(0.7); opacity:0.8; }
-          100% { transform: translate(-50%,-50%) scale(1.8); opacity:0; }
+          0%   { transform: scale(1);   opacity: 0.8; }
+          100% { transform: scale(2.4); opacity: 0;   }
         }
         .stations-popup .maplibregl-popup-content {
           background: transparent !important;
