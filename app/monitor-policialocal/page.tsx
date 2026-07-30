@@ -209,9 +209,9 @@ export default function PoliciaLocalPage() {
         });
       });
       
-      // Filtrar por últimos 30 días y ocultar cargas < 5 min
+      // Filtrar por últimos 90 días y ocultar cargas < 5 min
       const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 90);
       
       const sortedCharges = chargesWithStatus
         .sort((a, b) => new Date(b.startTimestamp || b.timestamp).getTime() - new Date(a.startTimestamp || a.timestamp).getTime())
@@ -414,7 +414,7 @@ export default function PoliciaLocalPage() {
                     </div>
                     <div className="flex flex-col gap-2 items-end">
                       <div className="flex items-center gap-1 text-red-500 font-bold text-sm">
-                        <span>⚠️</span>
+                        <span>��️</span>
                         <span>{allOccupiedConnectors.filter(c => c.stationName === station.name && sanctionableIds.has(c.id)).length}</span>
                       </div>
                     </div>
