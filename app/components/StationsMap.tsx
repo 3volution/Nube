@@ -166,12 +166,12 @@ export default function StationsMap({ stations, hasOvertimeCharges }: StationsMa
 
         const colors = {
           critical: { bg: '#ef4444', border: '#7f1d1d', glow: 'rgba(239,68,68,0.6)' },
-          occupied: { bg: '#f59e0b', border: '#78350f', glow: 'rgba(245,158,11,0.4)' },
-          free:     { bg: '#22c55e', border: '#14532d', glow: 'rgba(34,197,94,0.3)' },
+          occupied: { bg: '#3b82f6', border: '#1e3a8a', glow: 'rgba(59,130,246,0.4)' },
+          free:     { bg: '#3b82f6', border: '#1e3a8a', glow: 'rgba(59,130,246,0.3)' },
         };
         const c = colors[alertLevel];
 
-        const icon = alertLevel === 'critical' ? '⚡' : alertLevel === 'occupied' ? '⚡' : '✓';
+        const icon = alertLevel === 'critical' ? '⚡' : '⚡';
 
         el.innerHTML = `
           ${alertLevel === 'critical' ? `
