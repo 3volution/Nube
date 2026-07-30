@@ -23,13 +23,13 @@ export default function PoliciaLocalPage() {
   const [error, setError] = useState(null);
 
 
-  // Orden personalizado de estaciones
+  // Orden personalizado de estaciones: Bus, Roma, Xirgu, Alm1, Alm2, Prado
   const STATION_ORDER = {
     828537: 0, // Estacion Bus
     828524: 1, // Avda. Roma
-    828534: 2, // Calle Almendralejo (1)
-    828535: 3, // Calle Almendralejo (2)
-    828523: 4, // Plaza Xirgu
+    828523: 2, // Plaza Xirgu
+    828534: 3, // Calle Almendralejo (1)
+    828535: 4, // Calle Almendralejo (2)
     828538: 5  // Avda. del Prado
   };
 
@@ -424,21 +424,11 @@ export default function PoliciaLocalPage() {
             </div>
           </div>
 
-          {/* Todas las estaciones con todos sus conectores */}
+          {/* Todas las estaciones con todos sus conectores - orden fijo */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {stations
-              .sort((stationA, stationB) => {
-                // Estaciones con sancionables primero, luego ocupadas, luego libres
-                const aHasSanctionable = stationA.connectors?.some(c => sanctionableIds.has(c.id));
-                const bHasSanctionable = stationB.connectors?.some(c => sanctionableIds.has(c.id));
-                if (aHasSanctionable && !bHasSanctionable) return -1;
-                if (!aHasSanctionable && bHasSanctionable) return 1;
-                const aHasOccupied = allOccupiedConnectors.some(c => c.stationName === stationA.name);
-                const bHasOccupied = allOccupiedConnectors.some(c => c.stationName === stationB.name);
-                if (aHasOccupied && !bHasOccupied) return -1;
-                if (!aHasOccupied && bHasOccupied) return 1;
-                return (STATION_ORDER[stationA.id] ?? 999) - (STATION_ORDER[stationB.id] ?? 999);
-              })
+              .slice()
+              .sort((a, b) => (STATION_ORDER[a.id] ?? 999) - (STATION_ORDER[b.id] ?? 999))
               .map(station => (
                 <div
                   key={station.id}
@@ -448,14 +438,18 @@ export default function PoliciaLocalPage() {
                     <div>
                       <h3 className="text-white font-bold text-2xl">{station.name}</h3>
                     </div>
-                    <div className="flex flex-col gap-2 items-end">
-                      <div className="flex items-center gap-1 text-red-500 font-bold text-sm">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                          <path d="M12 2a10 10 0 100 20A10 10 0 0012 2zm0 15a1 1 0 110-2 1 1 0 010 2zm1-4a1 1 0 01-2 0V7a1 1 0 012 0v6z"/>
-                        </svg>
-                        <span>{allOccupiedConnectors.filter(c => c.stationName === station.name && sanctionableIds.has(c.id)).length}</span>
-                      </div>
-                    </div>
+                    {(() => {
+                      const count = allOccupiedConnectors.filter(c => c.stationName === station.name && sanctionableIds.has(c.id)).length;
+                      if (count === 0) return null;
+                      return (
+                        <div className="flex items-center gap-1 bg-red-900 border border-red-500 rounded-full px-2 py-0.5 text-red-300 font-bold text-xs">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3 text-red-400 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 2a10 10 0 100 20A10 10 0 0012 2zm0 15a1 1 0 110-2 1 1 0 010 2zm1-4a1 1 0 01-2 0V7a1 1 0 012 0v6z"/>
+                          </svg>
+                          <span>{count}</span>
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   <div className="grid grid-cols-1 gap-3 max-h-96 overflow-y-auto pr-2">
