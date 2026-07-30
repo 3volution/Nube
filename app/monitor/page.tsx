@@ -82,7 +82,7 @@ export default function MonitorPage() {
     try {
       const [stationsRes, changesRes, logsRes] = await Promise.all([
         fetch('/api/stations'),
-        fetch('/api/state-changes?limit=500'),
+        fetch('/api/state-changes?limit=2000'),
         fetch('/api/logs?limit=100')
       ]);
 
@@ -216,9 +216,9 @@ export default function MonitorPage() {
         }
       });
       
-      // Ordenar por startTimestamp descendente (más reciente primero), filtrar últimos 30 días
+      // Ordenar por startTimestamp descendente (más reciente primero), filtrar últimos 90 días
       const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 90);
       const sortedCharges = uniqueCharges
         .sort((a, b) => new Date(b.startTimestamp || b.timestamp).getTime() - new Date(a.startTimestamp || a.timestamp).getTime())
         .filter(c => {
