@@ -2,14 +2,14 @@
 
 import { useEffect, useRef } from 'react';
 
-// Coordenadas reales de las estaciones de carga de Mérida
+// Coordenadas reales de las estaciones de carga de Mérida (verificadas vía Google Maps)
 const STATION_COORDS: Record<number, { lat: number; lng: number }> = {
-  828537: { lat: 38.9177,  lng: -6.3427 }, // Estacion Bus - Av. de la Libertad
-  828524: { lat: 38.9153,  lng: -6.3391 }, // Avda. Roma
-  828523: { lat: 38.9162,  lng: -6.3448 }, // Plaza Xirgu - Pl. Margarita Xirgu
-  828534: { lat: 38.9145,  lng: -6.3412 }, // Calle Almendralejo (1)
-  828535: { lat: 38.9141,  lng: -6.3408 }, // Calle Almendralejo (2)
-  828538: { lat: 38.9135,  lng: -6.3371 }, // Avda. del Prado
+  828537: { lat: 38.9140994, lng: -6.3572276 }, // Estacion Bus - Av. de la Libertad
+  828524: { lat: 38.9157181, lng: -6.3484752 }, // Avda. Roma
+  828523: { lat: 38.9169339, lng: -6.3393681 }, // Plaza Xirgu
+  828534: { lat: 38.9196407, lng: -6.3441762 }, // Calle Almendralejo (1) - Zunder
+  828535: { lat: 38.9199500, lng: -6.3438500 }, // Calle Almendralejo (2) - ligeramente desplazado para evitar solapamiento
+  828538: { lat: 38.9241077, lng: -6.3671352 }, // Avda. del Prado
 };
 
 interface Connector {
@@ -72,8 +72,8 @@ export default function StationsMap({ stations, hasOvertimeCharges }: StationsMa
 
       if (!mapInstanceRef.current && mapRef.current) {
         const map = L.map(mapRef.current, {
-          center: [38.9155, -6.3410],
-          zoom: 15,
+          center: [38.9185, -6.3500],
+          zoom: 14,
           zoomControl: true,
           scrollWheelZoom: false,
         });
