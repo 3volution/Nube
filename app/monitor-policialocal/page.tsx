@@ -109,7 +109,7 @@ export default function PoliciaLocalPage() {
     try {
       const [stationsRes, changesRes] = await Promise.all([
         fetch('/api/stations'),
-        fetch('/api/state-changes?limit=2000')
+        fetch('/api/state-changes?limit=10000')
       ]);
 
       if (stationsRes.ok) {
@@ -414,7 +414,7 @@ export default function PoliciaLocalPage() {
                     </div>
                     <div className="flex flex-col gap-2 items-end">
                       <div className="flex items-center gap-1 text-red-500 font-bold text-sm">
-                        <span>��️</span>
+                        <span>���️</span>
                         <span>{allOccupiedConnectors.filter(c => c.stationName === station.name && sanctionableIds.has(c.id)).length}</span>
                       </div>
                     </div>
