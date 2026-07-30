@@ -1,15 +1,15 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useMemo } from 'react';
 
-// Coordenadas reales de las estaciones de carga de Mérida (verificadas vía Google Maps)
-const STATION_COORDS: Record<number, { lat: number; lng: number }> = {
-  828537: { lat: 38.9140994, lng: -6.3572276 }, // Estacion Bus - Av. de la Libertad
-  828524: { lat: 38.9157181, lng: -6.3484752 }, // Avda. Roma
-  828523: { lat: 38.9169339, lng: -6.3393681 }, // Plaza Xirgu
-  828534: { lat: 38.9196407, lng: -6.3441762 }, // Calle Almendralejo (1) - Zunder
-  828535: { lat: 38.9199500, lng: -6.3438500 }, // Calle Almendralejo (2) - ligeramente desplazado para evitar solapamiento
-  828538: { lat: 38.9241077, lng: -6.3671352 }, // Avda. del Prado
+// Coordenadas verificadas directamente de Google Maps
+const STATION_COORDS: Record<number, { lat: number; lng: number; label: string }> = {
+  828537: { lat: 38.9140994, lng: -6.3572276, label: 'Bus' },
+  828524: { lat: 38.9157181, lng: -6.3484752, label: 'Roma' },
+  828523: { lat: 38.9169339, lng: -6.3393681, label: 'Xirgu' },
+  828534: { lat: 38.9196407, lng: -6.3441762, label: 'Alm. 1' },
+  828535: { lat: 38.9199500, lng: -6.3438500, label: 'Alm. 2' },
+  828538: { lat: 38.9241077, lng: -6.3671352, label: 'Prado' },
 };
 
 interface Connector {
@@ -39,13 +39,9 @@ function getMinutesSince(timestamp?: string): number {
   }
 }
 
-function getStationAlertLevel(station: Station, hasOvertimeCharges: (c: Connector) => boolean) {
-  const overtimeConnectors = station.connectors.filter(c => hasOvertimeCharges(c));
-  const occupiedConnectors = station.connectors.filter(
-    c => c.status === 'OCCUPIED'
-  );
-  if (overtimeConnectors.length > 0) return 'critical'; // >2h
-  if (occupiedConnectors.length > 0) return 'occupied';
+function getStationAlertLevel(station: Station, hasOvertime: (c: Connector) => boolean) {
+  if (station.connectors.some(c => hasOvertime(c))) return 'critical';
+  if (station.connectors.some(c => c.status === 'OCCUPIED')) return 'occupied';
   return 'free';
 }
 
@@ -53,43 +49,56 @@ export default function StationsMap({ stations, hasOvertimeCharges }: StationsMa
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
+  const popupRef = useRef<any>(null);
 
+  // Datos de estaciones con coordenadas y nivel de alerta
+  const stationData = useMemo(() => {
+    return stations
+      .map(station => {
+        const coords = STATION_COORDS[station.id];
+        if (!coords) return null;
+        const alertLevel = getStationAlertLevel(station, hasOvertimeCharges);
+        const occupiedCount = station.connectors.filter(c => c.status === 'OCCUPIED').length;
+        const freeCount = station.connectors.filter(c => c.status === 'FREE' || c.status === 'AVAILABLE').length;
+        const overtimeConnectors = station.connectors.filter(c => hasOvertimeCharges(c));
+        return { station, coords, alertLevel, occupiedCount, freeCount, overtimeConnectors };
+      })
+      .filter(Boolean) as NonNullable<ReturnType<typeof stationData[0]>>[];
+  }, [stations, hasOvertimeCharges]);
+
+  // Inicializar mapa solo una vez
   useEffect(() => {
-    if (typeof window === 'undefined' || !mapRef.current) return;
+    if (typeof window === 'undefined' || !mapRef.current || mapInstanceRef.current) return;
 
-    // Inicializar el mapa solo una vez
-    const initMap = async () => {
-      const L = (await import('leaflet')).default;
+    let destroyed = false;
 
-      // Fix icono por defecto de Leaflet en Next.js
-      // @ts-ignore
-      delete L.Icon.Default.prototype._getIconUrl;
-      L.Icon.Default.mergeOptions({
-        iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
-        iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
-        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+    const init = async () => {
+      const maplibre = await import('maplibre-gl');
+      if (destroyed || !mapRef.current) return;
+
+      // Estilo oscuro moderno gratuito de OpenFreeMap
+      const map = new maplibre.Map({
+        container: mapRef.current,
+        style: 'https://tiles.openfreemap.org/styles/dark',
+        center: [-6.3500, 38.9185],
+        zoom: 13.5,
+        attributionControl: false,
+        logoPosition: 'bottom-left',
       });
 
-      if (!mapInstanceRef.current && mapRef.current) {
-        const map = L.map(mapRef.current, {
-          center: [38.9185, -6.3500],
-          zoom: 14,
-          zoomControl: true,
-          scrollWheelZoom: false,
-        });
+      map.addControl(new maplibre.NavigationControl({ showCompass: false }), 'top-right');
+      map.addControl(new maplibre.AttributionControl({ compact: true }), 'bottom-right');
 
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '© OpenStreetMap contributors',
-          maxZoom: 19,
-        }).addTo(map);
+      // Deshabilitar scroll zoom en móvil para evitar conflictos
+      map.scrollZoom.disable();
 
-        mapInstanceRef.current = map;
-      }
+      mapInstanceRef.current = map;
     };
 
-    initMap();
+    init();
 
     return () => {
+      destroyed = true;
       if (mapInstanceRef.current) {
         mapInstanceRef.current.remove();
         mapInstanceRef.current = null;
@@ -99,204 +108,208 @@ export default function StationsMap({ stations, hasOvertimeCharges }: StationsMa
 
   // Actualizar marcadores cuando cambian las estaciones
   useEffect(() => {
-    if (typeof window === 'undefined' || !mapInstanceRef.current) return;
+    if (typeof window === 'undefined') return;
 
     const updateMarkers = async () => {
-      const L = (await import('leaflet')).default;
       const map = mapInstanceRef.current;
       if (!map) return;
 
-      // Limpiar marcadores anteriores
+      const maplibre = await import('maplibre-gl');
+
+      // Eliminar marcadores y popup previos
       markersRef.current.forEach(m => m.remove());
       markersRef.current = [];
+      if (popupRef.current) {
+        popupRef.current.remove();
+        popupRef.current = null;
+      }
 
-      stations.forEach(station => {
-        const coords = STATION_COORDS[station.id];
-        if (!coords) return;
-
-        const alertLevel = getStationAlertLevel(station, hasOvertimeCharges);
-        const overtimeConnectors = station.connectors.filter(c => hasOvertimeCharges(c));
-        const occupiedCount = station.connectors.filter(c => c.status === 'OCCUPIED').length;
-        const freeCount = station.connectors.filter(
-          c => c.status === 'FREE' || c.status === 'AVAILABLE'
-        ).length;
-
-        // Colores según estado
-        const colors = {
-          critical: { bg: '#ef4444', border: '#991b1b', text: '#ffffff', pulse: true },
-          occupied: { bg: '#f59e0b', border: '#92400e', text: '#ffffff', pulse: false },
-          free:     { bg: '#22c55e', border: '#15803d', text: '#ffffff', pulse: false },
-        };
-        const color = colors[alertLevel];
-
-        // Pulse animation CSS solo para crítico
-        const pulseStyle = color.pulse
-          ? `
-            animation: markerPulse 0.8s ease-in-out infinite alternate;
-            box-shadow: 0 0 0 0 rgba(239,68,68,0.7);
-          `
-          : '';
-
-        // Icono SVG personalizado
-        const iconHtml = `
-          <div style="
-            position: relative;
-            width: 48px;
-            height: 48px;
-          ">
-            ${color.pulse ? `
-              <div style="
-                position: absolute;
-                top: 50%; left: 50%;
-                transform: translate(-50%, -50%);
-                width: 64px; height: 64px;
-                border-radius: 50%;
-                background: rgba(239,68,68,0.3);
-                animation: markerRing 1s ease-out infinite;
-              "></div>
-              <div style="
-                position: absolute;
-                top: 50%; left: 50%;
-                transform: translate(-50%, -50%);
-                width: 52px; height: 52px;
-                border-radius: 50%;
-                background: rgba(239,68,68,0.15);
-                animation: markerRing 1s ease-out infinite 0.3s;
-              "></div>
-            ` : ''}
-            <div style="
-              position: absolute;
-              top: 50%; left: 50%;
-              transform: translate(-50%, -50%);
-              width: 44px; height: 44px;
-              background: ${color.bg};
-              border: 3px solid ${color.border};
-              border-radius: 50%;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              font-weight: bold;
-              font-size: 13px;
-              color: ${color.text};
-              box-shadow: 0 4px 12px rgba(0,0,0,0.4);
-              ${color.pulse ? 'box-shadow: 0 0 20px rgba(239,68,68,0.9), 0 4px 12px rgba(0,0,0,0.4);' : ''}
-              font-family: monospace;
-            ">
-              ${alertLevel === 'critical' ? '⚠' : '⚡'}
-            </div>
-          </div>
+      stationData.forEach(({ station, coords, alertLevel, occupiedCount, freeCount, overtimeConnectors }) => {
+        // Crear elemento del marcador
+        const el = document.createElement('div');
+        el.style.cssText = `
+          position: relative;
+          width: 48px;
+          height: 48px;
+          cursor: pointer;
         `;
 
-        const icon = L.divIcon({
-          html: iconHtml,
-          className: '',
-          iconSize: [48, 48],
-          iconAnchor: [24, 24],
-          popupAnchor: [0, -28],
-        });
+        const colors = {
+          critical: { bg: '#ef4444', border: '#7f1d1d', glow: 'rgba(239,68,68,0.6)' },
+          occupied: { bg: '#f59e0b', border: '#78350f', glow: 'rgba(245,158,11,0.4)' },
+          free:     { bg: '#22c55e', border: '#14532d', glow: 'rgba(34,197,94,0.3)' },
+        };
+        const c = colors[alertLevel];
 
-        // Contenido del popup
+        const icon = alertLevel === 'critical' ? '⚡' : alertLevel === 'occupied' ? '⚡' : '✓';
+
+        el.innerHTML = `
+          ${alertLevel === 'critical' ? `
+            <div style="
+              position:absolute; top:50%; left:50%;
+              transform:translate(-50%,-50%);
+              width:68px; height:68px; border-radius:50%;
+              background:rgba(239,68,68,0.2);
+              animation:ringPulse 1.2s ease-out infinite;
+            "></div>
+            <div style="
+              position:absolute; top:50%; left:50%;
+              transform:translate(-50%,-50%);
+              width:56px; height:56px; border-radius:50%;
+              background:rgba(239,68,68,0.15);
+              animation:ringPulse 1.2s ease-out infinite 0.4s;
+            "></div>
+          ` : ''}
+          <div style="
+            position:absolute; top:50%; left:50%;
+            transform:translate(-50%,-50%);
+            width:44px; height:44px; border-radius:50%;
+            background:${c.bg};
+            border:3px solid ${c.border};
+            box-shadow: 0 0 16px ${c.glow}, 0 4px 8px rgba(0,0,0,0.5);
+            display:flex; flex-direction:column;
+            align-items:center; justify-content:center;
+            font-family:system-ui,sans-serif;
+          ">
+            <span style="font-size:16px; line-height:1;">${icon}</span>
+          </div>
+          <div style="
+            position:absolute; bottom:-20px; left:50%;
+            transform:translateX(-50%);
+            background:rgba(0,0,0,0.85);
+            color:#f1f5f9; font-size:9px; font-weight:600;
+            padding:2px 5px; border-radius:3px;
+            white-space:nowrap; font-family:system-ui,sans-serif;
+            border:1px solid rgba(255,255,255,0.1);
+          ">${STATION_COORDS[station.id]?.label}</div>
+        `;
+
+        // Popup al hacer clic
         const connectorsHtml = station.connectors
+          .sort((a, b) => {
+            const aScore = hasOvertimeCharges(a) ? 2 : a.status === 'OCCUPIED' ? 1 : 0;
+            const bScore = hasOvertimeCharges(b) ? 2 : b.status === 'OCCUPIED' ? 1 : 0;
+            return bScore - aScore;
+          })
           .map(c => {
             const isOvertime = hasOvertimeCharges(c);
             const minutes = getMinutesSince(c.status_changed_at);
             const hours = Math.floor(minutes / 60);
             const mins = minutes % 60;
-            const timeStr = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
-            const statusLabel =
-              c.status === 'FREE' || c.status === 'AVAILABLE' ? 'LIBRE' :
-              c.status === 'OCCUPIED' ? 'OCUPADO' : 'FUERA';
-            const statusColor =
-              c.status === 'FREE' || c.status === 'AVAILABLE' ? '#22c55e' :
-              isOvertime ? '#ef4444' : '#f59e0b';
+            const timeStr = c.status === 'OCCUPIED'
+              ? (hours > 0 ? `${hours}h ${mins}m` : `${mins}m`)
+              : '';
+            const isFree = c.status === 'FREE' || c.status === 'AVAILABLE';
+            const statusColor = isFree ? '#22c55e' : isOvertime ? '#ef4444' : '#f59e0b';
+            const statusLabel = isFree ? 'LIBRE' : c.status === 'OCCUPIED' ? 'OCUPADO' : 'FUERA';
             return `
               <div style="
-                display: flex; align-items: center; justify-content: space-between;
-                padding: 4px 6px; margin: 2px 0; border-radius: 4px;
-                background: rgba(255,255,255,0.05);
-                ${isOvertime ? 'border-left: 3px solid #ef4444;' : ''}
+                display:flex; align-items:center; justify-content:space-between; gap:8px;
+                padding:5px 8px; margin:3px 0; border-radius:5px;
+                background:rgba(255,255,255,0.06);
+                ${isOvertime ? 'border-left:3px solid #ef4444;' : 'border-left:3px solid transparent;'}
               ">
-                <span style="font-size:11px; color:#94a3b8;">
-                  ${c.visualRef || c.id}
-                </span>
-                <span style="font-size:11px; font-weight:bold; color:${statusColor};">
-                  ${statusLabel}
-                </span>
-                ${c.status === 'OCCUPIED' ? `
-                  <span style="font-size:11px; color:${isOvertime ? '#ef4444' : '#cbd5e1'};">
-                    ${timeStr}${isOvertime ? ' ⚠' : ''}
-                  </span>
-                ` : ''}
+                <span style="font-size:11px;color:#94a3b8;min-width:60px;">${c.visualRef || c.id}</span>
+                <span style="font-size:11px;font-weight:700;color:${statusColor};">${statusLabel}</span>
+                ${timeStr ? `<span style="font-size:11px;color:${isOvertime ? '#ef4444' : '#64748b'};">${timeStr}${isOvertime ? ' ⚠' : ''}</span>` : '<span></span>'}
               </div>
             `;
-          })
-          .join('');
+          }).join('');
 
         const popupHtml = `
           <div style="
-            background: #1e293b; color: #f1f5f9;
-            border-radius: 8px; padding: 10px;
-            min-width: 200px; font-family: monospace;
+            background:#0f172a; color:#f1f5f9;
+            border-radius:10px; padding:12px;
+            min-width:210px; font-family:system-ui,sans-serif;
+            border:1px solid rgba(255,255,255,0.1);
+            box-shadow:0 8px 32px rgba(0,0,0,0.6);
           ">
-            <div style="font-weight: bold; font-size: 14px; margin-bottom: 6px; color: #f8fafc;">
+            <div style="font-weight:700;font-size:14px;margin-bottom:8px;color:#f8fafc;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:6px;">
               ${station.name}
             </div>
-            <div style="display:flex; gap:8px; margin-bottom:8px; font-size:11px;">
+            <div style="display:flex;gap:10px;margin-bottom:8px;font-size:11px;">
               <span style="color:#22c55e;">● ${freeCount} libres</span>
               <span style="color:#f59e0b;">● ${occupiedCount} ocupados</span>
-              ${overtimeConnectors.length > 0 ? `<span style="color:#ef4444;">⚠ ${overtimeConnectors.length} >2h</span>` : ''}
+              ${overtimeConnectors.length > 0 ? `<span style="color:#ef4444;font-weight:700;">⚠ ${overtimeConnectors.length} &gt;2h</span>` : ''}
             </div>
-            <div>${connectorsHtml}</div>
+            ${connectorsHtml}
           </div>
         `;
 
-        const marker = L.marker([coords.lat, coords.lng], { icon })
-          .addTo(map)
-          .bindPopup(popupHtml, {
-            maxWidth: 260,
-            className: 'stations-map-popup',
-          });
+        el.addEventListener('click', () => {
+          if (popupRef.current) popupRef.current.remove();
+          const popup = new maplibre.Popup({
+            closeButton: true,
+            closeOnClick: true,
+            className: 'stations-popup',
+            maxWidth: '260px',
+            offset: 30,
+          })
+            .setLngLat([coords.lng, coords.lat])
+            .setHTML(popupHtml)
+            .addTo(map);
+          popupRef.current = popup;
+        });
+
+        const marker = new maplibre.Marker({ element: el, anchor: 'center' })
+          .setLngLat([coords.lng, coords.lat])
+          .addTo(map);
 
         markersRef.current.push(marker);
       });
     };
 
-    // Esperar a que el mapa esté inicializado
-    const timer = setTimeout(updateMarkers, 300);
-    return () => clearTimeout(timer);
-  }, [stations, hasOvertimeCharges]);
+    // Si el mapa ya está listo, actualizar inmediatamente
+    const map = mapInstanceRef.current;
+    if (map) {
+      if (map.loaded()) {
+        updateMarkers();
+      } else {
+        map.once('load', updateMarkers);
+      }
+    } else {
+      // Esperar a que se inicialice
+      const interval = setInterval(() => {
+        if (mapInstanceRef.current) {
+          clearInterval(interval);
+          const m = mapInstanceRef.current;
+          if (m.loaded()) updateMarkers();
+          else m.once('load', updateMarkers);
+        }
+      }, 100);
+      return () => clearInterval(interval);
+    }
+  }, [stationData]);
 
   return (
     <>
       <style>{`
-        @keyframes markerRing {
-          0%   { transform: translate(-50%, -50%) scale(0.8); opacity: 0.8; }
-          100% { transform: translate(-50%, -50%) scale(1.6); opacity: 0; }
+        @keyframes ringPulse {
+          0%   { transform: translate(-50%,-50%) scale(0.7); opacity:0.8; }
+          100% { transform: translate(-50%,-50%) scale(1.8); opacity:0; }
         }
-        .stations-map-popup .leaflet-popup-content-wrapper {
+        .stations-popup .maplibregl-popup-content {
           background: transparent !important;
-          border: none !important;
-          box-shadow: none !important;
           padding: 0 !important;
+          border-radius: 10px !important;
+          box-shadow: none !important;
         }
-        .stations-map-popup .leaflet-popup-content {
-          margin: 0 !important;
+        .stations-popup .maplibregl-popup-tip { display: none; }
+        .stations-popup .maplibregl-popup-close-button {
+          color: #94a3b8;
+          font-size: 18px;
+          top: 6px;
+          right: 8px;
         }
-        .stations-map-popup .leaflet-popup-tip-container {
-          display: none;
-        }
-        .leaflet-container {
-          background: #0f172a;
-          border-radius: 8px;
-        }
+        .maplibregl-ctrl-attrib { font-size: 9px !important; }
       `}</style>
       <link
         rel="stylesheet"
-        href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"
+        href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css"
       />
       <div
         ref={mapRef}
-        style={{ width: '100%', height: '400px', borderRadius: '8px' }}
+        style={{ width: '100%', height: '420px', borderRadius: '8px', background: '#0f172a' }}
       />
     </>
   );
