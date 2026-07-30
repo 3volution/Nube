@@ -1,9 +1,19 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { APP_VERSION } from '@/app/config/version';
 import { CallEventModal } from '@/app/components/CallEventModal';
 import { PasswordAuth } from '@/app/components/PasswordAuth';
+
+const StationsMap = dynamic(() => import('@/app/components/StationsMap'), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-96 bg-slate-800 rounded-lg flex items-center justify-center">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400" />
+    </div>
+  ),
+});
 
 function MonitorPoliciaContent() {
   const [stations, setStations] = useState([]);
@@ -486,6 +496,33 @@ function MonitorPoliciaContent() {
                     </div>
                   </div>
                 ))}
+              </div>
+            </div>
+
+            {/* Mapa de estaciones */}
+            <div className="mb-8">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-white font-bold text-lg">Mapa de Estaciones</h2>
+                <div className="flex items-center gap-4 text-xs">
+                  <span className="flex items-center gap-1">
+                    <span className="inline-block w-3 h-3 rounded-full bg-green-500" />
+                    <span className="text-slate-400">Libre</span>
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="inline-block w-3 h-3 rounded-full bg-yellow-400" />
+                    <span className="text-slate-400">Ocupado</span>
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="inline-block w-3 h-3 rounded-full bg-red-500" />
+                    <span className="text-slate-400 font-semibold">Alerta +2h</span>
+                  </span>
+                </div>
+              </div>
+              <div className="rounded-lg overflow-hidden border border-slate-600">
+                <StationsMap
+                  stations={displayStations}
+                  hasOvertimeCharges={hasOvertimeCharges}
+                />
               </div>
             </div>
 
