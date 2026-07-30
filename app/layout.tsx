@@ -62,15 +62,20 @@ export default function RootLayout({
             __html: `
               if ('serviceWorker' in navigator) {
                 window.addEventListener('load', () => {
-                  navigator.serviceWorker.register('/sw.js').then((reg) => {
-                    reg.addEventListener('updatefound', () => {
-                      var newWorker = reg.installing;
-                      newWorker.addEventListener('statechange', () => {
-                        if (newWorker.state === 'activated') {
-                          window.location.reload();
-                        }
-                      });
+                  // Desregistrar todos los SWs existentes para limpiar caches antiguas
+                  navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                    var unregisterPromises = registrations.map(function(reg) {
+                      return reg.unregister();
                     });
+                    return Promise.all(unregisterPromises);
+                  }).then(function() {
+                    // Limpiar todos los caches del navegador
+                    return caches.keys().then(function(keys) {
+                      return Promise.all(keys.map(function(key) { return caches.delete(key); }));
+                    });
+                  }).then(function() {
+                    // Registrar el SW actualizado
+                    return navigator.serviceWorker.register('/sw.js');
                   });
                 });
               }
