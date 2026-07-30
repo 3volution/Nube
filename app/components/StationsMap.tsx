@@ -8,7 +8,7 @@ const STATION_COORDS: Record<number, { lat: number; lng: number; label: string }
   828524: { lat: 38.9157181, lng: -6.3484752, label: 'Roma' },
   828523: { lat: 38.9169339, lng: -6.3393681, label: 'Xirgu' },
   828534: { lat: 38.9196407, lng: -6.3441762, label: 'Alm. 1' },
-  828535: { lat: 38.9199500, lng: -6.3438500, label: 'Alm. 2' },
+  828535: { lat: 38.9196407, lng: -6.3451000, label: 'Alm. 2' },
   828538: { lat: 38.9241077, lng: -6.3671352, label: 'Prado' },
 };
 
