@@ -17,8 +17,8 @@ function getSupabaseClient() {
  *
  *   GET /api/watcher/check?secret=<CRON_SECRET>
  *
- * Autenticación exclusiva mediante ?secret=<CRON_SECRET>.
- * NO acepta invocaciones de Vercel Cron (el endpoint no está en vercel.json).
+ * Autenticación mediante Authorization: Bearer <CRON_SECRET> (Vercel Cron)
+ * o, durante la transición, mediante ?secret=<CRON_SECRET> (scheduler externo).
  *
  * Razones del scheduler externo:
  * - Compatibilidad con Vercel Hobby (sin límite de frecuencia externa)
@@ -26,7 +26,7 @@ function getSupabaseClient() {
  * - Menor complejidad que polling desde el cliente
  * - Misma funcionalidad que con Vercel Cron nativo
  *
- * Autenticación: query param ?secret=<CRON_SECRET> (env var).
+ * Autenticación: Bearer token o query param (env var CRON_SECRET).
  * El secret debe tener al menos 32 caracteres aleatorios.
  *
  * Lógica:
@@ -42,20 +42,15 @@ function getSupabaseClient() {
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
-    const secret = searchParams.get('secret');
+    const querySecret = searchParams.get('secret');
+    const authHeader = request.headers.get('authorization');
+    const expectedSecret = process.env.CRON_SECRET;
+    const isAuthorized = Boolean(expectedSecret) && (
+      querySecret === expectedSecret ||
+      authHeader === `Bearer ${expectedSecret}`
+    );
 
-    // [DIAGNÓSTICO TEMPORAL - REMOVER DESPUÉS DE DEBUG]
-    console.log('[v0-DIAG-CRON] Validación de secret:', {
-      receivedLength: secret?.length,
-      envLength: process.env.CRON_SECRET?.length,
-      equal: secret === process.env.CRON_SECRET,
-      receivedFirst8: secret?.slice(0, 8),
-      envFirst8: process.env.CRON_SECRET?.slice(0, 8),
-      receivedLast8: secret?.slice(-8),
-      envLast8: process.env.CRON_SECRET?.slice(-8)
-    });
-
-    if (secret !== process.env.CRON_SECRET) {
+    if (!isAuthorized) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
