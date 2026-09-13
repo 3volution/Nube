@@ -20,10 +20,11 @@ scheduler HTTP externo que puede ser cualquier servicio o herramienta:
 
 ## Paso 1 — Actualizar CRON_SECRET en Vercel
 
-El `CRON_SECRET` actual debe rotarse. El nuevo valor generado criptográficamente es:
+Genera un valor nuevo y guárdalo únicamente como variable de entorno. Nunca
+escribas una clave real en el repositorio:
 
 ```
-615bb757a3c27785d26a4ac08f58ae65d7adf41bc098ea27d4e58f4d0b71aeee
+openssl rand -hex 32
 ```
 
 **Dónde actualizarlo:**
@@ -41,7 +42,7 @@ El `CRON_SECRET` actual debe rotarse. El nuevo valor generado criptográficament
 ## Paso 2 — URL a invocar
 
 ```
-GET https://merida.hackerdepueblo.es/api/watcher/check?secret=615bb757a3c27785d26a4ac08f58ae65d7adf41bc098ea27d4e58f4d0b71aeee
+GET https://merida.hackerdepueblo.es/api/watcher/check?secret=<CRON_SECRET>
 ```
 
 - Método: `GET`
@@ -112,7 +113,7 @@ Después de actualizar `CRON_SECRET` en Vercel y configurar el scheduler, verifi
 
 ```bash
 # Secreto correcto → debe devolver 200
-curl -s "https://merida.hackerdepueblo.es/api/watcher/check?secret=615bb757a3c27785d26a4ac08f58ae65d7adf41bc098ea27d4e58f4d0b71aeee"
+curl -s "https://merida.hackerdepueblo.es/api/watcher/check?secret=<CRON_SECRET>"
 
 # Secreto incorrecto → debe devolver 401
 curl -s "https://merida.hackerdepueblo.es/api/watcher/check?secret=wrongsecret"
