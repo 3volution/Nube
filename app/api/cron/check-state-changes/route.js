@@ -22,15 +22,20 @@ function getSupabaseClient() {
  * Para cada cambio: inserta en connector_state_changes
  * Actualiza snapshot en charger_state
  * 
- * Autenticación: ?secret=<CRON_SECRET> (env var)
+ * Autenticación: Authorization Bearer (Vercel Cron) o query param (scheduler externo)
  */
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
-    const secret = searchParams.get('secret');
+    const querySecret = searchParams.get('secret');
+    const authHeader = request.headers.get('authorization');
+    const expectedSecret = process.env.CRON_SECRET;
+    const isAuthorized = Boolean(expectedSecret) && (
+      querySecret === expectedSecret ||
+      authHeader === `Bearer ${expectedSecret}`
+    );
 
-    // Validar secret
-    if (secret !== process.env.CRON_SECRET) {
+    if (!isAuthorized) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
