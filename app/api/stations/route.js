@@ -1,8 +1,91 @@
 export async function GET(request) {
+  // Rechazar consultas RIDER no autorizadas antes de acceder a Electromaps.
+  if (new URL(request.url).searchParams.get('rider') === '1') {
+    const secret = process.env.RIDER_CHARGER_SECRET?.trim();
+    if (!secret || request.headers.get('authorization') !== `Bearer ${secret}`) {
+      return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
+    }
+  }
+
   const ELECTROMAPS_USER = process.env.ELECTROMAPS_USER;
   const ELECTROMAPS_PASS = process.env.ELECTROMAPS_PASS;
   const SUPABASE_URL = process.env.SUPABASE_URL;
   const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY;
+
+  // RIDER lee exactamente el estado que conserva el monitor de HackerCharger.
+  // Esta rama es de solo lectura: no consulta Electromaps ni escribe en Supabase.
+  if (new URL(request.url).searchParams.get('rider') === '1') {
+    if (!SUPABASE_URL || !SUPABASE_KEY) {
+      return Response.json({ ok: false, error: 'Historial no configurado' }, { status: 503 });
+    }
+    const stations = [
+      ['828537', 'Estacion Bus', 'Av. de la Libertad, Mérida'],
+      ['828524', 'Avda. Roma', 'Avda. de Roma, Mérida'],
+      ['828523', 'Plaza Xirgu', 'Pl. Margarita Xirgu, Mérida'],
+      ['828534', 'Calle Almendralejo (1)', 'C. Almendralejo, Mérida'],
+      ['828535', 'Calle Almendralejo (2)', 'C. Almendralejo, Mérida'],
+      ['828538', 'Avda. del Prado', 'Avda. del Prado, Mérida']
+    ];
+    const observed_at = new Date().toISOString();
+    try {
+      const rows = await Promise.all(stations.map(async ([id, name, address]) => {
+        const response = await fetch(
+          `${SUPABASE_URL}/rest/v1/charger_state?station_id=eq.${id}&select=state,last_check`,
+          { headers: { Authorization: `Bearer ${SUPABASE_KEY}`, apikey: SUPABASE_KEY }, cache: 'no-store' }
+        );
+        if (!response.ok) throw new Error(`Error leyendo estación ${id}: ${response.status}`);
+        const result = await response.json();
+        const record = result[0];
+        if (!record || !Array.isArray(record.state)) return null;
+        const connectors = record.state.map(c => {
+          const raw = c.status;
+          const status = ['FREE', 'AVAILABLE'].includes(raw) ? 'FREE'
+            : raw === 'OCCUPIED' ? 'OCCUPIED'
+            : ['OUT_OF_SERVICE', 'OUT_OF_ORDER', 'UNAVAILABLE', 'FAULTED', 'INOPERATIVE'].includes(raw)
+              ? 'OUT_OF_SERVICE' : 'UNKNOWN';
+          // El endpoint que alimenta la web guarda status_updated_at.
+          // El monitor histórico puede guardar status_changed_at; admitir ambos.
+          const changed = c.status_changed_at || c.status_updated_at;
+          const changedMs = typeof changed === 'string' ? Date.parse(changed) : NaN;
+          const ageTrusted = !c.es_test && Number.isFinite(changedMs)
+            && changedMs > 0 && changedMs <= Date.parse(observed_at);
+          return {
+            id: String(c.id), visual_ref: c.visualRef || String(c.id),
+            raw_status: raw, status, available: status === 'FREE',
+            state_since: ageTrusted ? changed : null,
+            state_age_seconds: ageTrusted ? Math.floor((Date.parse(observed_at) - changedMs) / 1000) : null,
+            state_age_trusted: ageTrusted
+          };
+        });
+        return {
+          station_id: id, station_name: name, address, connectors,
+          free_count: connectors.filter(c => c.status === 'FREE').length,
+          occupied_count: connectors.filter(c => c.status === 'OCCUPIED').length,
+          out_of_service_count: connectors.filter(c => c.status === 'OUT_OF_SERVICE').length,
+          unknown_count: connectors.filter(c => c.status === 'UNKNOWN').length,
+          last_check: record.last_check
+        };
+      }));
+      const station = rows[0];
+      if (!station) return Response.json({ ok: false, error: 'Sin datos de Estación Bus' }, { status: 503 });
+      const alternatives = rows.slice(1).filter(Boolean).map(s => ({
+        station_id: s.station_id, station_name: s.station_name, address: s.address,
+        free_count: s.free_count,
+        free_connectors: s.connectors.filter(c => c.available).map(c => ({ id: c.id, visual_ref: c.visual_ref }))
+      }));
+      return Response.json({
+        ok: true, observed_at, station, alternatives,
+        watch: {
+          can_offer: station.free_count === 0 && station.occupied_count > 0,
+          station_id: station.station_id,
+          station_name: station.station_name,
+          confirmation: '¿Quieres que vigile los cargadores de Estación de Autobuses y te avise si se libera alguno?'
+        }
+      }, { headers: { 'Cache-Control': 'no-store' } });
+    } catch (error) {
+      return Response.json({ ok: false, error: 'No se pudo leer el estado de los cargadores' }, { status: 502 });
+    }
+  }
 
   if (!ELECTROMAPS_USER || !ELECTROMAPS_PASS) {
     return Response.json(
@@ -217,6 +300,68 @@ export async function GET(request) {
         }
       })
     );
+
+    // Vista específica para RIDER, reutilizando los mismos datos de la web.
+    // No altera el contrato público de /api/stations.
+    if (new URL(request.url).searchParams.get('rider') === '1') {
+      const secret = process.env.RIDER_CHARGER_SECRET?.trim();
+      if (!secret || request.headers.get('authorization') !== `Bearer ${secret}`) {
+        return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
+      }
+
+      const observed_at = new Date().toISOString();
+      // Usar la misma fecha de estado que muestra el monitor de HackerCharger.
+      // No se consulta ni se reconstruye el historial de Supabase.
+      const mapStation = (station) => {
+        const connectors = station.connectors.map((connector) => {
+          const raw = connector.status;
+          const status = ['FREE', 'AVAILABLE'].includes(raw) ? 'LIBRE'
+            : raw === 'OCCUPIED' ? 'OCUPADO'
+            : ['OUT_OF_SERVICE', 'OUT_OF_ORDER', 'UNAVAILABLE', 'FAULTED', 'INOPERATIVE'].includes(raw)
+              ? 'FUERA DE SERVICIO' : 'DESCONOCIDO';
+          const changedAt = connector.status_changed_at;
+          const changedAtMs = typeof changedAt === 'string' ? Date.parse(changedAt) : NaN;
+          const observedAtMs = Date.parse(observed_at);
+          const reliable = !connector.es_test
+            && Number.isFinite(changedAtMs)
+            && changedAtMs >= 0
+            && changedAtMs <= observedAtMs;
+          return {
+            id: connector.id,
+            visualRef: connector.visualRef,
+            status,
+            raw_status: raw,
+            status_changed_at: reliable ? changedAt : null,
+            time_in_state_seconds: reliable
+              ? Math.floor((observedAtMs - changedAtMs) / 1000) : null,
+            time_in_state_reliable: reliable,
+            es_test: Boolean(connector.es_test),
+          };
+        });
+        return {
+          id: station.id,
+          name: station.name,
+          connectors,
+          conectoresLibres: connectors.filter((c) => c.status === 'LIBRE').length,
+          conectoresOcupados: connectors.filter((c) => c.status === 'OCUPADO').length,
+          conectoresFueraDeServicio: connectors.filter((c) => c.status === 'FUERA DE SERVICIO').length,
+          lastCheck: station.lastCheck,
+          ...(station.error ? { error: station.error } : {}),
+        };
+      };
+      const stations = formattedStations.map(mapStation);
+      const station = stations.find((s) => String(s.id) === '828537');
+      if (!station) {
+        return Response.json({ ok: false, error: 'Estación de Autobuses no disponible' }, { status: 502 });
+      }
+      return Response.json({
+        ok: true,
+        observed_at,
+        station,
+        alternatives: stations.filter((s) => String(s.id) !== '828537'),
+        watch: { available: false, reason: 'Vigilancia no incluida en esta consulta' },
+      }, { headers: { 'Cache-Control': 'no-store' } });
+    }
 
     return Response.json({
       success: true,
