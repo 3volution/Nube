@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 interface Station {
   id: string | number;
@@ -23,6 +23,18 @@ interface WatcherModalProps {
 export function WatcherModal({ station, isOpen, isWatching, onClose, onStart, onCancel }: WatcherModalProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [telegramReady, setTelegramReady] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let active = true;
+    setTelegramReady(null);
+    fetch('/api/watcher/telegram-health', { cache: 'no-store' })
+      .then(response => response.json())
+      .then(data => { if (active) setTelegramReady(data.verified === true); })
+      .catch(() => { if (active) setTelegramReady(false); });
+    return () => { active = false; };
+  }, [isOpen]);
 
   const close = () => {
     setError(null);
@@ -31,6 +43,10 @@ export function WatcherModal({ station, isOpen, isWatching, onClose, onStart, on
   };
 
   const start = async () => {
+    if (telegramReady !== true) {
+      setError('Telegram Toyota CHR no está verificado. No se puede activar la vigilancia.');
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -93,6 +109,11 @@ export function WatcherModal({ station, isOpen, isWatching, onClose, onStart, on
             ? 'Si un conector pasa de ocupado a libre, Toyota CHR enviará 5 avisos por Telegram separados por 1 segundo y después desactivará esta vigilancia.'
             : 'Al liberarse un conector recibirás 5 mensajes en Telegram Toyota CHR, separados por 1 segundo. Tras el quinto aviso, la vigilancia se desactiva automáticamente.'}
         </div>
+        {telegramReady === false && !isWatching && (
+          <div className="mb-4 p-3 rounded text-sm border bg-red-900/50 border-red-700 text-red-200" role="alert">
+            Telegram Toyota CHR no está configurado o validado. Se ha bloqueado la activación para evitar perder avisos.
+          </div>
+        )}
         {error && (
           <div className="mb-4 p-3 rounded text-sm border bg-red-900/50 border-red-700 text-red-200" role="alert">
             ⚠️ {error}
@@ -101,7 +122,7 @@ export function WatcherModal({ station, isOpen, isWatching, onClose, onStart, on
         <div className="flex flex-col gap-3">
           <button
             onClick={isWatching ? cancel : start}
-            disabled={loading}
+            disabled={loading || (!isWatching && telegramReady !== true)}
             className={`w-full px-4 py-3 rounded transition disabled:opacity-50 font-semibold text-white ${isWatching
               ? 'bg-red-600 hover:bg-red-700'
               : 'bg-amber-600 hover:bg-amber-700'}`}
