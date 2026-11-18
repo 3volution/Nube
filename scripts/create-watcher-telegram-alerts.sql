@@ -1,7 +1,7 @@
 -- HackerCharger / Telegram Toyota CHR (5 avisos, pausa de 1 segundo).
 -- Migracion aditiva: no modifica datos ni tablas historicas de Twilio.
 CREATE TABLE IF NOT EXISTS public.watcher_telegram_alerts (
-  watcher_id UUID PRIMARY KEY REFERENCES public.active_watchers(id) ON DELETE CASCADE,
+  watcher_id UUID PRIMARY KEY, -- Sin CASCADE: conservar historial al reactivar la misma estación.
   station_id TEXT NOT NULL,
   station_name TEXT NOT NULL,
   connector_id TEXT NOT NULL,
