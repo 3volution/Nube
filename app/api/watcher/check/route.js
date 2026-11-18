@@ -9,7 +9,7 @@ import {
 } from '@/app/services/watcher-telegram-service';
 
 // Cinco envíos y cuatro intervalos de 1 segundo, más las peticiones de red/BD.
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 function getSupabaseClient() {
   if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
@@ -123,8 +123,8 @@ async function claimRetry(supabase, alert) {
 export async function GET(request) {
   const supplied = request.headers.get('authorization');
   const querySecret = new URL(request.url).searchParams.get('secret');
-  const expected = process.env.CRON_SECRET;
-  if (!expected || (supplied !== `Bearer ${expected}` && querySecret !== expected)) {
+  const secrets = [process.env.CRON_SECRET, process.env.HACKERCHARGER_WATCHER_SECRET].filter(Boolean);
+  if (!secrets.length || !secrets.some(secret => supplied === `Bearer ${secret}` || querySecret === secret)) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
