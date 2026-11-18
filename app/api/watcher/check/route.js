@@ -1,261 +1,232 @@
 import { createClient } from '@supabase/supabase-js';
 import { obtenerDatosEstacion } from '@/api/electromaps';
-import { sendCallAlert } from '@/app/services/notification-service';
+import {
+  ALERT_COUNT,
+  ALERT_INTERVAL_MS,
+  getToyotaChrTelegram,
+  sendToyotaChrAlert,
+  waitBetweenAlerts,
+} from '@/app/services/watcher-telegram-service';
+
+// Cinco envíos y cuatro intervalos de 1 segundo, más las peticiones de red/BD.
+export const maxDuration = 60;
 
 function getSupabaseClient() {
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) throw new Error('Supabase environment variables not configured');
-  return createClient(url, key);
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    throw new Error('Supabase no configurado');
+  }
+  return createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+}
+
+async function completeWatcher(supabase, watcherId) {
+  const { error: alertError } = await supabase
+    .from('watcher_telegram_alerts')
+    .update({ status: 'completed', completed_at: new Date().toISOString(), last_error: null })
+    .eq('watcher_id', watcherId)
+    .eq('sent_count', ALERT_COUNT);
+  if (alertError) throw alertError;
+
+  const { error: watcherError } = await supabase
+    .from('active_watchers')
+    .update({ status: 'completed' })
+    .eq('id', watcherId)
+    .eq('status', 'active');
+  if (watcherError) throw watcherError;
+}
+
+async function deliverAlertSeries(supabase, watcher, alert) {
+  let sent = alert.sent_count;
+  if (sent === ALERT_COUNT) {
+    await completeWatcher(supabase, watcher.id);
+    return 0;
+  }
+
+  try {
+    // getMe asegura que estamos utilizando @RiderCHRbot y no otro bot del proyecto.
+    const telegram = await getToyotaChrTelegram();
+    let sentInThisRun = 0;
+
+    for (let number = sent + 1; number <= ALERT_COUNT; number++) {
+      if (number > sent + 1) {
+        await waitBetweenAlerts(ALERT_INTERVAL_MS);
+      }
+
+      await sendToyotaChrAlert(telegram, {
+        stationName: alert.station_name,
+        connectorId: alert.connector_id,
+        sequenceNumber: number,
+      });
+
+      const { error } = await supabase
+        .from('watcher_telegram_alerts')
+        .update({ sent_count: number, last_sent_at: new Date().toISOString(), last_error: null })
+        .eq('watcher_id', watcher.id)
+        .eq('status', 'sending');
+      if (error) throw error;
+
+      sentInThisRun++;
+      sent = number;
+    }
+
+    // Sólo finalizar después de confirmar cinco envíos correctos.
+    await completeWatcher(supabase, watcher.id);
+    return sentInThisRun;
+  } catch (error) {
+    // Ante fallo no reiniciar la serie desde cero: el siguiente scheduler
+    // reclama la alerta y continúa desde sent_count, evitando 5+ avisos.
+    const { error: recordError } = await supabase
+      .from('watcher_telegram_alerts')
+      .update({ status: 'failed', last_error: String(error.message || error).slice(0, 500) })
+      .eq('watcher_id', watcher.id)
+      .eq('status', 'sending');
+    if (recordError) console.error('watcher/check - fallo al registrar error:', recordError.message);
+    throw error;
+  }
+}
+
+async function claimRetry(supabase, alert) {
+  // Un envío normal dura unos segundos; transcurridos 90 s reclamamos un
+  // intento interrumpido (por timeout), sin permitir concurrencia entre crons.
+  const expired = new Date(Date.now() - 90_000).toISOString();
+  if (alert.status === 'sending' && new Date(alert.claimed_at) > new Date(expired)) {
+    return null;
+  }
+  if (alert.status === 'completed') return null;
+
+  let query = supabase
+    .from('watcher_telegram_alerts')
+    .update({
+      status: 'sending',
+      claimed_at: new Date().toISOString(),
+      last_error: null,
+    })
+    .eq('watcher_id', alert.watcher_id)
+    .eq('status', alert.status)
+    .eq('claimed_at', alert.claimed_at);
+  if (alert.status === 'sending') query = query.lt('claimed_at', expired);
+
+  const { data, error } = await query.select('*').maybeSingle();
+  if (error) throw error;
+  return data; // null cuando otro proceso ya reclamó la alerta
 }
 
 /**
- * GET /api/watcher/check
+ * GET /api/watcher/check (CRON_SECRET por Bearer o query legacy)
  *
- * Diseñado para ser invocado cada minuto por un scheduler externo
- * (cron-job.org, EasyCron, GitHub Actions, etc.) mediante:
+ * Un watcher dispara UNA serie cuando detecta OCCUPIED -> FREE/AVAILABLE.
+ * Telegram Toyota CHR recibe 5 mensajes, con 1 s ENTRE mensajes.
+ * Tras el quinto envío el watcher pasa a completed.
  *
- *   GET /api/watcher/check?secret=<CRON_SECRET>
- *
- * Autenticación mediante Authorization: Bearer <CRON_SECRET> (Vercel Cron)
- * o, durante la transición, mediante ?secret=<CRON_SECRET> (scheduler externo).
- *
- * Razones del scheduler externo:
- * - Compatibilidad con Vercel Hobby (sin límite de frecuencia externa)
- * - La vigilancia funciona aunque el usuario cierre la web
- * - Menor complejidad que polling desde el cliente
- * - Misma funcionalidad que con Vercel Cron nativo
- *
- * Autenticación: Bearer token o query param (env var CRON_SECRET).
- * El secret debe tener al menos 32 caracteres aleatorios.
- *
- * Lógica:
- * 1. Sin vigilancias activas → early exit, sin consultar Electromaps
- * 2. Para cada vigilancia activa → consulta Electromaps
- * 3. Compara estado actual vs last_connector_states
- * 4. Si OCCUPIED → FREE/AVAILABLE y NO existe alerta 'ringing' activa:
- *    - Inserta fila en watcher_call_events (status='ringing', attempt=1)
- *    - Lanza llamada Twilio con timeout=14 y statusCallback
- * 5. Si ya existe alerta 'ringing' → no hace nada (StatusCallback gestiona reintentos)
- * 6. Si no hay liberación → actualiza last_connector_states
+ * El scheduler debe invocar este endpoint regularmente (por ejemplo, cada minuto).
+ * No usa Twilio ni el callback de llamadas.
  */
 export async function GET(request) {
+  const supplied = request.headers.get('authorization');
+  const querySecret = new URL(request.url).searchParams.get('secret');
+  const secrets = [process.env.CRON_SECRET, process.env.HACKERCHARGER_WATCHER_SECRET].filter(Boolean);
+  if (!secrets.length || !secrets.some(secret => supplied === `Bearer ${secret}` || querySecret === secret)) {
+    return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
-    const { searchParams } = new URL(request.url);
-    const querySecret = searchParams.get('secret');
-    const authHeader = request.headers.get('authorization');
-    const expectedSecret = process.env.CRON_SECRET;
-    const isAuthorized = Boolean(expectedSecret) && (
-      querySecret === expectedSecret ||
-      authHeader === `Bearer ${expectedSecret}`
-    );
-
-    if (!isAuthorized) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const supabase = getSupabaseClient();
-
-    const { data: watchers, error: fetchError } = await supabase
+    const { data: watchers, error: watcherError } = await supabase
       .from('active_watchers')
       .select('*')
       .eq('status', 'active');
+    if (watcherError) throw watcherError;
 
-    if (fetchError) {
-      console.error('watcher/check - error BD:', fetchError.message);
-      return Response.json({ error: fetchError.message }, { status: 500 });
+    if (!watchers?.length) {
+      return Response.json({ success: true, checked: 0, telegram_sent: 0, completed: 0 });
     }
 
-    if (!watchers || watchers.length === 0) {
-      return Response.json({ success: true, checked: 0, calls_made: 0 }, { status: 200 });
-    }
-
-    const user = process.env.ELECTROMAPS_USER;
-    const pass = process.env.ELECTROMAPS_PASS;
-
-    if (!user || !pass) {
-      return Response.json({ error: 'Credenciales Electromaps no configuradas' }, { status: 500 });
-    }
-
-    let callsMade = 0;
+    let sent = 0;
+    let completed = 0;
+    const errors = [];
 
     for (const watcher of watchers) {
       try {
-        // [LOG 1] Iniciando vigilancia
-        console.log('[v0-DIAG-WATCHER] Iniciando vigilancia:', {
-          watcher_id: watcher.id,
-          station_id: watcher.station_id,
-          station_name: watcher.station_name,
-          last_connector_states: watcher.last_connector_states
-        });
+        const { data: pending, error: pendingError } = await supabase
+          .from('watcher_telegram_alerts')
+          .select('*')
+          .eq('watcher_id', watcher.id)
+          .maybeSingle();
+        if (pendingError) throw pendingError;
 
-        const conectores = await obtenerDatosEstacion(watcher.station_id, user, pass);
-
-        // [LOG 2] Datos de Electromaps obtenidos
-        console.log('[v0-DIAG-WATCHER] Datos de Electromaps obtenidos:', {
-          station_id: watcher.station_id,
-          conectores_count: conectores?.length,
-          conectores: conectores?.map(c => ({ id: c.id, status: c.status }))
-        });
-
-        if (!conectores || conectores.length === 0) continue;
-
-        const currentStates = {};
-        conectores.forEach(c => { currentStates[c.id] = c.status; });
-
-        const previousStates = watcher.last_connector_states || {};
-
-        // Buscar conector liberado: OCCUPIED → FREE o AVAILABLE
-        let freedConnectorId = null;
-        let freedPrevStatus = null;
-        let freedCurrStatus = null;
-
-        for (const connectorId of Object.keys(currentStates)) {
-          const prev = previousStates[connectorId];
-          const curr = currentStates[connectorId];
-          
-          // [LOG 3] Comparación de estados
-          console.log('[v0-DIAG-WATCHER] Comparación de estados:', {
-            connector_id: connectorId,
-            previousStatus: prev,
-            currentStatus: curr,
-            esDetectableComoLiberation: prev === 'OCCUPIED' && (curr === 'FREE' || curr === 'AVAILABLE')
-          });
-
-          if (prev === 'OCCUPIED' && (curr === 'FREE' || curr === 'AVAILABLE')) {
-            freedConnectorId = connectorId;
-            freedPrevStatus = prev;
-            freedCurrStatus = curr;
-            break;
-          }
-        }
-
-        if (freedConnectorId) {
-          // Calcular duración de la carga y escribir en connector_state_changes
-          const freedConnector = conectores.find(c => c.id === freedConnectorId);
-          if (freedConnector) {
-            const chargeEndTime = new Date().toISOString();
-            const chargeStartTime = freedConnector.status_changed_at || chargeEndTime;
-
-            // Escribir en connector_state_changes con los campos correctos de la tabla
-            const now = new Date(chargeEndTime);
-            const fecha = now.toISOString().split('T')[0]; // YYYY-MM-DD
-            const hora = now.toTimeString().split(' ')[0]; // HH:MM:SS
-            const diasSemana = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
-            const dia = diasSemana[now.getDay()];
-            const durationSeconds = Math.floor(
-              (new Date(chargeEndTime) - new Date(chargeStartTime)) / 1000
-            );
-
-            // [LOG 4] Antes de INSERT en connector_state_changes
-            console.log('[v0-DIAG-WATCHER] Insertando en connector_state_changes:', {
-              connector_id: freedConnectorId,
-              estado_anterior: freedPrevStatus,
-              estado_nuevo: freedCurrStatus,
-              fecha: fecha,
-              timestamp: chargeEndTime
-            });
-
-            const { error: stateChangeError } = await supabase.from('connector_state_changes').insert({
-              connector_id: String(freedConnectorId),
-              station_id: String(watcher.station_id),
-              station_name: watcher.station_name,
-              estado_anterior: freedPrevStatus,
-              estado_nuevo: freedCurrStatus,
-              fecha: fecha,
-              dia: dia,
-              hora: hora,
-              timestamp: chargeEndTime,
-              tiempo_en_estado_anterior_segundos: durationSeconds
-            });
-
-            if (stateChangeError) {
-              console.error('[v0-DIAG-WATCHER] ❌ ERROR INSERT connector_state_changes:', stateChangeError.message);
-              console.error('[v0-DIAG-WATCHER]    Detalles:', JSON.stringify(stateChangeError, null, 2));
-            } else {
-              console.log('[v0-DIAG-WATCHER] ✓ INSERT connector_state_changes exitoso');
+        if (pending) {
+          if (pending.status === 'completed') {
+            await completeWatcher(supabase, watcher.id);
+            completed++;
+          } else {
+            const claimed = await claimRetry(supabase, pending);
+            if (claimed) {
+              sent += await deliverAlertSeries(supabase, watcher, claimed);
+              completed += 1;
             }
           }
-
-          // Comprobar si ya existe una alerta activa (ringing) para este watcher
-          const { data: existingAlert } = await supabase
-            .from('watcher_call_events')
-            .select('id')
-            .eq('watcher_id', watcher.id)
-            .eq('status', 'ringing')
-            .maybeSingle();
-
-          if (existingAlert) {
-            // Ya hay un ciclo de reintentos activo gestionado por StatusCallback
-            // No insertar nueva alerta ni lanzar nueva llamada
-            continue;
-          }
-
-          // Primera detección: insertar alerta y lanzar llamada 1
-          const callResult = await sendCallAlert({
-            phoneNumber: process.env.TWILIO_CALL_RECIPIENT,
-            stationName: watcher.station_name,
-            attempt: 1,
-          });
-
-          if (callResult.success) {
-            callsMade++;
-
-            await supabase
-              .from('watcher_call_events')
-              .insert({
-                watcher_id: watcher.id,
-                station_name: watcher.station_name,
-                station_id: String(watcher.station_id),
-                call_attempt: 1,
-                max_attempts: 1,
-                status: 'ringing',
-                call_sid: callResult.callSid,
-                last_attempt_at: new Date().toISOString(),
-                trigger_connector_id: String(freedConnectorId),
-                trigger_previous_status: freedPrevStatus,
-                trigger_current_status: freedCurrStatus,
-                acknowledged: false,
-              });
-
-            // El watcher permanece 'active' hasta confirmed o expired
-          } else {
-            console.error('watcher/check - Twilio falló en llamada 1:', callResult.error);
-          }
-
-        } else {
-          // Sin liberación detectada: actualizar estados para siguiente iteración
-          // [LOG 5] Actualizando last_connector_states
-          console.log('[v0-DIAG-WATCHER] Actualizando last_connector_states:', {
-            watcher_id: watcher.id,
-            station_id: watcher.station_id,
-            currentStates: currentStates
-          });
-
-          const { error: updateError } = await supabase
-            .from('active_watchers')
-            .update({ last_connector_states: currentStates })
-            .eq('id', watcher.id);
-
-          if (updateError) {
-            console.error('[v0-DIAG-WATCHER] ❌ ERROR UPDATE last_connector_states:', updateError.message);
-            console.error('[v0-DIAG-WATCHER]    Detalles:', JSON.stringify(updateError, null, 2));
-          } else {
-            console.log('[v0-DIAG-WATCHER] ✓ UPDATE last_connector_states exitoso');
-          }
+          continue;
         }
 
-      } catch (stationError) {
-        console.error(`watcher/check - error estación ${watcher.station_id}:`, stationError.message);
+        const user = process.env.ELECTROMAPS_USER;
+        const pass = process.env.ELECTROMAPS_PASS;
+        if (!user || !pass) throw new Error('Credenciales Electromaps no configuradas');
+        const connectors = await obtenerDatosEstacion(watcher.station_id, user, pass);
+        if (!Array.isArray(connectors) || !connectors.length) {
+          console.warn('watcher/check - sin conectores:', watcher.station_id);
+          continue;
+        }
+
+        const previous = watcher.last_connector_states || {};
+        const current = Object.fromEntries(
+          connectors.map(connector => [String(connector.id), connector.status])
+        );
+        const freedId = Object.keys(current).find(id =>
+          previous[id] === 'OCCUPIED' &&
+          (current[id] === 'FREE' || current[id] === 'AVAILABLE')
+        );
+
+        // IMPORTANTE: también tras una liberación, para no redetectarla.
+        const { error: stateError } = await supabase
+          .from('active_watchers')
+          .update({ last_connector_states: current })
+          .eq('id', watcher.id)
+          .eq('status', 'active');
+        if (stateError) throw stateError;
+        if (!freedId) continue;
+
+        // Una única fila por vigilancia = reserva anti-duplicados.
+        // En caso de 23505, otro proceso ha reservado el envío.
+        const { data: reserved, error: insertError } = await supabase
+          .from('watcher_telegram_alerts')
+          .insert({
+            watcher_id: watcher.id,
+            station_id: String(watcher.station_id),
+            station_name: watcher.station_name,
+            connector_id: String(freedId),
+            status: 'sending',
+            sent_count: 0,
+          })
+          .select('*')
+          .single();
+        if (insertError?.code === '23505') continue;
+        if (insertError) throw insertError;
+
+        console.log('watcher/check - liberacion detectada:', watcher.station_id, freedId);
+        sent += await deliverAlertSeries(supabase, watcher, reserved);
+        completed++;
+      } catch (error) {
+        console.error('watcher/check - error:', watcher.station_id, error.message);
+        errors.push({ station_id: String(watcher.station_id), error: error.message });
       }
     }
 
     return Response.json({
-      success: true,
+      success: errors.length === 0,
       checked: watchers.length,
-      calls_made: callsMade
-    }, { status: 200 });
-
+      telegram_sent: sent,
+      completed,
+      errors,
+    }, { status: errors.length ? 207 : 200 });
   } catch (error) {
     console.error('watcher/check - error general:', error.message);
     return Response.json({ error: error.message }, { status: 500 });
