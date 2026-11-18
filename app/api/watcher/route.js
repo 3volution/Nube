@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { obtenerDatosEstacion } from '@/api/electromaps';
+import { getToyotaChrTelegram } from '@/app/services/watcher-telegram-service';
 
 function getSupabaseClient() {
   const url = process.env.SUPABASE_URL;
@@ -29,6 +30,12 @@ export async function POST(request) {
 
     if (!station_id || !station_name) {
       return Response.json({ error: 'station_id y station_name son requeridos' }, { status: 400 });
+    }
+
+    try {
+      await getToyotaChrTelegram();
+    } catch (telegramError) {
+      return Response.json({ error: 'Telegram Toyota CHR no está verificado. Activación bloqueada.' }, { status: 503 });
     }
 
     const supabase = getSupabaseClient();
